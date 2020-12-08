@@ -100,17 +100,6 @@ let annotate_lexical_addresses_helper = fun e ->
     match last_var_def with
     | Some (var_depth, var_pos) ->
       if var_depth = depth then Var' (VarParam(var_name, var_pos))
-      else Var' (VarBound(var_name, depth - var_depth, var_pos))
-    | None -> Var' (VarFree var_name)
-
-  and annotate_expr_list = fun depth exprs ->
-    List.map (ann_lex_addr_traversal depth) exprs
-
-  and annotate_var = fun depth var_name ->
-    let last_var_def = Hashtbl.find_opt vars_map var_name in
-    match last_var_def with
-    | Some (var_depth, var_pos) ->
-      if var_depth = depth then Var' (VarParam(var_name, var_pos))
       else Var' (VarBound(var_name, depth - var_depth - 1, var_pos))
     | None -> Var' (VarFree var_name)
 
