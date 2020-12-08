@@ -103,6 +103,39 @@ let annotate_lexical_addresses_helper = fun e ->
       else Var' (VarBound(var_name, depth - var_depth, var_pos))
     | None -> Var' (VarFree var_name)
 
+  and annotate_expr_list = fun depth exprs ->
+    List.map (ann_lex_addr_traversal depth) exprs
+
+  and annotate_var = fun depth var_name ->
+    let last_var_def = Hashtbl.find_opt vars_map var_name in
+    match last_var_def with
+    | Some (var_depth, var_pos) ->
+      if var_depth = depth then Var' (VarParam(var_name, var_pos))
+      else Var' (VarBound(var_name, depth - var_depth - 1, var_pos))
+    | None -> Var' (VarFree var_name)
+
+  and annotate_lambda = fun factory depth arg_names expr ->
+    let next_depth = depth + 1 in
+    begin
+      add_args_to_map next_depth arg_names;
+      let expr' = ann_lex_addr_traversal next_depth expr in
+      begin
+        remove_args_from_map arg_names;
+        factory expr'
+      end;
+    end;
+  and annotate_lambda_simple = fun depth arg_names expr ->
+    annotate_lambda
+      (fun expr' -> LambdaSimple' (arg_names, expr'))
+      depth
+      arg_names
+      expr
+  and annotate_lambda_opt = fun depth req_arg_names opt_arg_name expr ->
+    annotate_lambda
+      (fun expr' -> LambdaOpt' (req_arg_names, opt_arg_name, expr'))
+      depth
+      (req_arg_names @ [opt_arg_name])
+      expr
   and add_args_to_map = fun depth arg_names ->
     List.iteri
       (fun arg_pos arg_name -> Hashtbl.add vars_map arg_name (depth, arg_pos))
@@ -111,18 +144,6 @@ let annotate_lexical_addresses_helper = fun e ->
     List.iter
       (fun arg_name -> Hashtbl.remove vars_map arg_name)
       arg_names
-  and annotate_lambda = fun depth arg_names expr ->
-    let next_depth = depth + 1 in
-    begin
-      add_args_to_map next_depth arg_names;
-      let expr' = ann_lex_addr_traversal next_depth expr in
-      begin
-        remove_args_from_map arg_names;
-        expr'
-      end;
-    end;
-  and annotate_lambda_opt = fun depth req_arg_names opt_arg_name expr ->
-    annotate_lambda depth (req_arg_names @ [opt_arg_name]) expr
 
   and ann_lex_addr_traversal = fun depth expr ->
     match expr with
@@ -133,7 +154,7 @@ let annotate_lexical_addresses_helper = fun e ->
     | Set (var, expr) -> annotate_set_bang depth var expr
     | Def (var, expr) -> annotate_def depth var expr
     | Or exprs -> Or' (annotate_expr_list depth exprs)
-    | LambdaSimple (arg_names, body_expr) -> annotate_lambda depth arg_names body_expr
+    | LambdaSimple (arg_names, body_expr) -> annotate_lambda_simple depth arg_names body_expr
     | LambdaOpt (req_arg_names, opt_arg_name, body_expr) -> annotate_lambda_opt depth req_arg_names opt_arg_name body_expr
     | Applic (expr_operator, exprs_operands) -> annotate_applic depth expr_operator exprs_operands in
 
