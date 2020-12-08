@@ -75,7 +75,7 @@ let var_to_string = fun var ->
   | VarFree var_name -> Printf.sprintf "VarFree %s" var_name
   | VarParam (var_name, var_pos) -> Printf.sprintf "VarParam (%s, %d))" var_name var_pos
   | VarBound (var_name, major, minor) -> Printf.sprintf "VarBound (%s, %d, %d)" var_name major minor in
-  Printf.sprintf "Var' %s" s
+  Printf.sprintf "Var' (%s)" s
 
 let rec expr'_list_to_string = fun expr's_list ->
   let (s, _) =
@@ -84,7 +84,7 @@ let rec expr'_list_to_string = fun expr's_list ->
         let expr'_string = expr'_to_string expr' in
         let new_acc =
           if is_last then expr'_string
-          else Printf.sprintf "%s; %s" acc expr'_string in
+          else Printf.sprintf "%s; %s" expr'_string acc in
         (new_acc, false))
       expr's_list
       ("", true) in
@@ -98,7 +98,7 @@ and lambda_to_stirng = fun lambda_name args_list arg_opt expr' ->
       if arg_opt <> ""
       then ", " ^ arg_opt
       else "" in
-    Printf.sprintf "(%s%s, (%s))" args_list_s arg_opt_s expr'_s
+    Printf.sprintf "%s (%s%s, (%s))" lambda_name args_list_s arg_opt_s expr'_s
 
 and applic_to_string = fun applic_name expr' expr'_list ->
   let expr'_s = expr'_to_string expr' in
@@ -149,5 +149,207 @@ let make_test_analysis_from_string = fun f string expected ->
     string
     expected
 
-let test_annotate_lexical_addresses = fun string expected ->
+let test_annotate_lexical_addresses_case = fun string expected ->
   make_test_analysis_from_string (fun expr' -> expr') string expected
+
+let test_annotate_lexical_addresses = fun () ->
+  test_annotate_lexical_addresses_case
+    "(define map
+       (lambda (f s)
+         (if (null? s)
+           '()
+           (let ((x (f (car s))))
+             (cons x (map f (cdr s)))))))"
+    (Def' (
+      VarFree "map",
+      LambdaSimple' (
+        ["f"; "s"],
+        If' (
+          Applic' (Var' (VarFree "null?"), [Var' (VarParam ("s", 1))]),
+          Const' (Sexpr Nil),
+          Applic' (
+            LambdaSimple' (
+              ["x"],
+              Applic' (
+                Var' (VarFree "cons"), [
+                  Var' (VarParam ("x", 0));
+                  Applic' (
+                    Var' (VarFree "map"), [
+                      Var' (VarBound ("f", 0, 0));
+                      Applic' (Var' (VarFree "cdr"), [Var' (VarBound ("s", 0, 1))])
+                    ]
+                  )
+                ]
+              )
+            ), [
+              Applic' (
+                Var' (VarParam ("f", 0)),
+                [Applic' (Var' (VarFree "car"), [Var' (VarParam ("s", 1))])]
+              )
+            ])
+        )
+      )
+    ));
+
+  test_annotate_lexical_addresses_case
+    "(lambda (a)
+       (a (lambda (b)
+         (a b (lambda (c)
+           (a b c))))))"
+    (LambdaSimple' (
+      ["a"],
+      Applic' (
+        Var' (VarParam ("a", 0)), [
+          LambdaSimple' (
+            ["b"],
+            Applic' (
+              Var' (VarBound ("a", 0, 0)), [
+                Var' (VarParam ("b", 0));
+                LambdaSimple' (
+                  ["c"],
+                  Applic' (
+                    Var' (VarBound ("a", 1, 0)),
+                    [Var' (VarBound ("b", 0, 0)); Var' (VarParam ("c", 0))]
+                  )
+                )
+              ]
+            )
+          )
+        ]
+      )
+    ));
+
+    test_annotate_lexical_addresses_case
+      "(lambda (x)
+        (lambda (y z)
+          (lambda (t)
+            x)))"
+      (LambdaSimple' (
+        ["x"],
+        LambdaSimple' (
+          ["y"; "z"],
+          LambdaSimple' (["t"], Var' (VarBound ("x", 1, 0)))
+        )
+      ));
+
+    test_annotate_lexical_addresses_case
+      "(lambda (x)
+        (x (lambda (y)
+          (x y (lambda (z)
+          (x y z))))))"
+      (LambdaSimple' (
+        ["x"],
+        Applic' (
+          Var' (VarParam ("x", 0)), [
+            LambdaSimple' (
+              ["y"],
+              Applic' (
+                Var' (VarBound ("x", 0, 0)), [
+                  Var' (VarParam ("y", 0));
+                  LambdaSimple' (
+                    ["z"],
+                    Applic' (
+                      Var' (VarBound ("x", 1, 0)),
+                      [Var' (VarBound ("y", 0, 0)); Var' (VarParam ("z", 0))]
+                    )
+                  )
+                ]
+              )
+            )
+          ]
+        )
+      ));
+
+    test_annotate_lexical_addresses_case
+      "(lambda (x)
+        (lambda (x y)
+          (lambda (y)
+            (x) (x y) (y)) y))"
+      (LambdaSimple' (
+        ["x"],
+        LambdaSimple' (
+          ["x"; "y"],
+          Seq' [
+            LambdaSimple' (
+              ["y"],
+              Seq' [
+                Applic' (Var' (VarBound ("x", 0, 0)), []);
+                Applic' (Var' (VarBound ("x", 0, 0)), [Var' (VarParam ("y", 0))]);
+                Applic' (Var' (VarParam ("y", 0)), [])]
+            );
+            Var' (VarParam ("y", 1))
+          ]
+        )
+      ));
+
+    test_annotate_lexical_addresses_case
+      "(lambda (x y z)
+        (if x
+          (lambda (y) (+ z y))
+            (lambda (z) z)))"
+      (LambdaSimple' (
+        ["x"; "y"; "z"],
+        If' (
+          Var' (VarParam ("x", 0)),
+          LambdaSimple' (
+            ["y"],
+            Applic' (Var' (VarFree "+"), [Var' (VarBound ("z", 0, 2)); Var' (VarParam ("y", 0))])
+          ),
+          LambdaSimple' (["z"], Var' (VarParam ("z", 0)))
+        )
+      ));
+
+    test_annotate_lexical_addresses_case
+      "(lambda (x y)
+        (z (lambda (z) (z x y))))"
+      (LambdaSimple' (
+        ["x"; "y"],
+        Applic' (
+          Var' (VarFree "z"),
+          [LambdaSimple' (
+            ["z"],
+            Applic' (
+              Var' (VarParam ("z", 0)),
+              [Var' (VarBound ("x", 0, 0)); Var' (VarBound ("y", 0, 1))]
+            )
+          )]
+        )
+      ));
+
+    test_annotate_lexical_addresses_case
+      "(lambda (x a)
+        (lambda (y z)
+          (lambda (v)
+            (f z x a))
+          (+ v z x a)
+          v))"
+      (LambdaSimple' (
+        ["x"; "a"],
+        LambdaSimple' (
+          ["y"; "z"],
+          Seq' [
+            LambdaSimple' (
+              ["v"],
+              Applic' (
+                Var' (VarFree "f"), [
+                  Var' (VarBound ("z", 0, 1));
+                  Var' (VarBound ("x", 1, 0));
+                  Var' (VarBound ("a", 1, 1))
+                ]
+              )
+            );
+            Applic' (
+              Var' (VarFree "+"), [
+                Var' (VarFree "v");
+                Var' (VarParam ("z", 1));
+                Var' (VarBound ("x", 0, 0));
+                Var' (VarBound ("a", 0, 1))
+              ]
+            );
+            Var' (VarFree "v")
+          ]
+        )
+      ))
+
+let main = fun () ->
+  test_annotate_lexical_addresses ();;
