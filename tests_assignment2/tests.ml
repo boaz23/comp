@@ -182,7 +182,7 @@ let make_compare_from_string f_compare string expected =
                     f_compare
                         (fun sexpr_string actual_string expected_string ->
                             Printf.printf
-                                "  error in test { %s }\n  read: { %s }\n  expected: { %s }\n  actual: { %s }\n"
+                                "error in test { %s }\n  read: { %s }\n  expected: { %s }\n  actual: { %s }\n"
                                 string
                                 sexpr_string
                                 expected_string
@@ -243,7 +243,7 @@ let core_forms_tests() =
     parse_and_compare_from_string "(operator)" [Applic (Var "operator", [])];
     parse_and_compare_from_string "(operator operand1 operand2)" [Applic (Var "operator", [Var "operand1"; Var "operand2"])];
     parse_and_compare_from_string "(operator operand1 operand2 (if 1 2 3))"
-                                    [Applic (Var "operator",                                                                                                                                                                      [Var "operand1"; Var "operand2";
+                                    [Applic (Var "operator", [Var "operand1"; Var "operand2";
                                      If (Const (Sexpr (Number (Fraction (1, 1)))),
                                         Const (Sexpr (Number (Fraction (2, 1)))),
                                         Const (Sexpr (Number (Fraction (3, 1)))))])];
@@ -292,7 +292,7 @@ let core_forms_tests() =
     parse_and_compare_from_string "(lambda () 1)" [LambdaSimple ([], Const (Sexpr (Number (Fraction (1, 1)))))];
 
     parse_and_compare_from_string "(lambda () (if #f 4 (+ 1 2)) (begin))"
-                                    [LambdaSimple ([],                                                                                                                                                                            Seq
+                                    [LambdaSimple ([], Seq
                                     [If (Const (Sexpr (Bool false)), Const (Sexpr (Number (Fraction (4, 1)))),
                                         Applic (Var "+",
                                         [Const (Sexpr (Number (Fraction (1, 1))));
@@ -311,7 +311,7 @@ let core_forms_tests() =
 
 
     parse_and_compare_from_string "(lambda (a x . s) (if a x (apply function s)) (begin x (* x 2) s))"
-                                    [LambdaOpt (["a"; "x"], "s",                                                                                                                                                                  Seq
+                                    [LambdaOpt (["a"; "x"], "s", Seq
                                     [If (Var "a", Var "x", Applic (Var "apply", [Var "function"; Var "s"]));
                                         Var "x";
                                         Applic (Var "*", [Var "x"; Const (Sexpr (Number (Fraction (2, 1))))]);
@@ -319,12 +319,12 @@ let core_forms_tests() =
 
 
     parse_and_compare_from_string "(lambda c (if (eq? c '()) 1 2))"
-                                    [LambdaOpt ([], "c",                                                                                                                                                                          If (Applic (Var "eq?", [Var "c"; Const (Sexpr Nil)]),
+                                    [LambdaOpt ([], "c", If (Applic (Var "eq?", [Var "c"; Const (Sexpr Nil)]),
                                         Const (Sexpr (Number (Fraction (1, 1)))),
                                         Const (Sexpr (Number (Fraction (2, 1))))))];
 
     parse_and_compare_from_string "(lambda c (begin (begin) (if (eq? c '()) 1 2)))"
-                                    [LambdaOpt ([], "c",                                                                                                                                                                          Seq
+                                    [LambdaOpt ([], "c", Seq
                                     [Const Void;
                                         If (Applic (Var "eq?", [Var "c"; Const (Sexpr Nil)]),
                                         Const (Sexpr (Number (Fraction (1, 1)))),
