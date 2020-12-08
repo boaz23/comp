@@ -2,7 +2,6 @@
 *.ml.swp
 *.ml.save
 \#*#
-test*
 readme.txt
 
 external_tests/*
