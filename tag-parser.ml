@@ -198,7 +198,7 @@ let expand_mit_define_macro = fun var_name args body ->
 let expend_pset_macro = fun bindings ->
   match bindings with
   (* no bindings *)
-  | Nil -> Const Void
+  | Nil -> make_begin_sexpr Nil
 
   (* exactly 1 binding, equivalent to a set! *)
   | Pair(Pair(var_sexpr, value_exp), Nil) -> make_set_sexpr_raw var_sexpr value_exp
@@ -425,10 +425,10 @@ and parse_var_form = fun symbol ->
   then Var symbol
   else raise X_syntax_error
 
-and extract_var_name = fun smybol_sexpr ->
-  let symbol_string = extract_symbol_string smybol_sexpr in
-  let var = parse_var_form symbol_string
-  match var with
+and extract_var_name = fun symbol_sexpr ->
+  let symbol_string = extract_symbol_string symbol_sexpr in
+  let var_expr = parse_var_form symbol_string in
+  match var_expr with
   | Var var_name -> var_name
 
   (* cannot reach this case, here for completeness and in order to compile without warnings *)

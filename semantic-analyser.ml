@@ -61,52 +61,26 @@ end;;
 
 module Semantics : SEMANTICS = struct
 
-let make_set_expr' = fun var expr' ->
-  Set' (var, expr');;
-let make_def_expr' = fun var expr' ->
-  Def' (var, expr');;
-let make_seq_expr' = fun expr'_list ->
-  Seq' expr'_list;;
-let make_or_expr' = fun expr'_list ->
-  Or' expr'_list;;
-let make_lambda_simple_expr' = fun arg_names body_expr' ->
-  LambdaSimple' (arg_names, body_expr');;
-let make_lambda_opt_expr' = fun arg_names opt_arg_name body_expr' ->
-  LambdaOpt' (arg_names, opt_arg_name, body_expr');;
-
 let annotate_lexical_addresses_helper = fun e ->
   let vars_map = Hashtbl.create 16 in
-  let rec annotate_set_bang = fun depth var expr ->
-    let var_expr' = ann_lex_addr_traversal depth var in
-    match var_expr' with
+
+  let rec annotate_set = fun depth var_expr value_expr ->
+    let (var, value_expr') = annotate_assignment_expr' depth var_expr value_expr in
+    Set' (var, value_expr')
+  and annotate_def = fun depth var_expr value_expr ->
+    let (var, value_expr') = annotate_assignment_expr' depth var_expr value_expr in
+    Def' (var, value_expr')
+
+  and annotate_assignment_expr' = fun depth var_expr value_expr ->
+    let annotated_var_expr' = annotate_traversal depth var_expr in
+    match annotated_var_expr' with
     | Var' var ->
-      let expr' = ann_lex_addr_traversal depth expr in
-      Set' (var, expr')
+      let value_expr' = annotate_traversal depth value_expr in
+      (var, value_expr')
     | _ -> raise X_syntax_error
-
-  and annotate_def = fun depth var expr ->
-    let var_expr' = ann_lex_addr_traversal depth var in
-    match var_expr' with
-    | Var' var ->
-      let expr' = ann_lex_addr_traversal depth expr in
-      Def' (var, expr')
-    | _ -> raise X_syntax_error
-
-  and annotate_if = fun depth test dit dif ->
-    If' (
-      (ann_lex_addr_traversal depth test),
-      (ann_lex_addr_traversal depth dit),
-      (ann_lex_addr_traversal depth dif)
-    )
-
-  and annotate_applic = fun depth expr_operator exprs_operands ->
-    Applic' (
-      (ann_lex_addr_traversal depth expr_operator),
-      (annotate_expr_list depth exprs_operands)
-    )
 
   and annotate_expr_list = fun depth exprs ->
-    List.map (ann_lex_addr_traversal depth) exprs
+    List.map (annotate_traversal depth) exprs
 
   and annotate_var = fun depth var_name ->
     let last_var_def = Hashtbl.find_opt vars_map var_name in
@@ -116,28 +90,24 @@ let annotate_lexical_addresses_helper = fun e ->
       else Var' (VarBound(var_name, depth - var_depth - 1, var_pos))
     | None -> Var' (VarFree var_name)
 
-  and annotate_lambda = fun factory depth arg_names expr ->
+  and annotate_lambda_simple = fun depth arg_names expr ->
+    let expr' =  annotate_lambda depth arg_names expr in
+    LambdaSimple' (arg_names, expr')
+  and annotate_lambda_opt = fun depth req_arg_names opt_arg_name expr ->
+    let arg_names = (req_arg_names @ [opt_arg_name]) in
+    let expr' =  annotate_lambda depth arg_names expr in
+    LambdaOpt' (req_arg_names, opt_arg_name, expr')
+
+  and annotate_lambda = fun depth arg_names expr ->
     let next_depth = depth + 1 in
     begin
       add_args_to_map next_depth arg_names;
-      let expr' = ann_lex_addr_traversal next_depth expr in
+      let expr' = annotate_traversal next_depth expr in
       begin
         remove_args_from_map arg_names;
-        factory expr'
+        expr'
       end;
     end;
-  and annotate_lambda_simple = fun depth arg_names expr ->
-    annotate_lambda
-      (fun expr' -> LambdaSimple' (arg_names, expr'))
-      depth
-      arg_names
-      expr
-  and annotate_lambda_opt = fun depth req_arg_names opt_arg_name expr ->
-    annotate_lambda
-      (fun expr' -> LambdaOpt' (req_arg_names, opt_arg_name, expr'))
-      depth
-      (req_arg_names @ [opt_arg_name])
-      expr
   and add_args_to_map = fun depth arg_names ->
     List.iteri
       (fun arg_pos arg_name -> Hashtbl.add vars_map arg_name (depth, arg_pos))
@@ -147,80 +117,88 @@ let annotate_lexical_addresses_helper = fun e ->
       (fun arg_name -> Hashtbl.remove vars_map arg_name)
       arg_names
 
-  and ann_lex_addr_traversal = fun depth expr ->
+  and annotate_traversal = fun depth expr ->
     match expr with
     | Const sexpr -> Const' sexpr
     | Var var_name -> annotate_var depth var_name
-    | If (test, dit, dif) -> annotate_if depth test dit dif
+    | If (test, dit, dif) -> If' (
+        (annotate_traversal depth test),
+        (annotate_traversal depth dit),
+        (annotate_traversal depth dif)
+      )
     | Seq exprs -> Seq' (annotate_expr_list depth exprs)
-    | Set (var, expr) -> annotate_set_bang depth var expr
-    | Def (var, expr) -> annotate_def depth var expr
+    | Set (var_expr, value_expr) -> annotate_set depth var_expr value_expr
+    | Def (var_expr, value_expr) -> annotate_def depth var_expr value_expr
     | Or exprs -> Or' (annotate_expr_list depth exprs)
     | LambdaSimple (arg_names, body_expr) -> annotate_lambda_simple depth arg_names body_expr
     | LambdaOpt (req_arg_names, opt_arg_name, body_expr) -> annotate_lambda_opt depth req_arg_names opt_arg_name body_expr
-    | Applic (expr_operator, exprs_operands) -> annotate_applic depth expr_operator exprs_operands in
+    | Applic (expr_operator, exprs_operands) -> Applic' (
+        (annotate_traversal depth expr_operator),
+        (annotate_expr_list depth exprs_operands)
+      ) in
 
-  ann_lex_addr_traversal 0 e;;
+  annotate_traversal 0 e;;
 
 let annotate_tail_calls_helpr = fun e ->
-
   let rec annotate_if = fun test dit dif is_in_tp ->
     let annotate_test = annotate_traversal test false in
     let annotate_dit = annotate_traversal dit is_in_tp in
     let annotate_dif = annotate_traversal dif is_in_tp in
-      If'(annotate_test, annotate_dit, annotate_dif)
+    If'(annotate_test, annotate_dit, annotate_dif)
 
   and annotate_list_not_in_tail_pos = fun expr'_list ->
     List.map (fun expr' -> annotate_traversal expr' false) expr'_list
 
-  and annotate_list = fun expr'_list is_in_tp factory ->
-    let rev_list = List.rev expr'_list in 
+  and annotate_list = fun expr'_list is_in_tp ->
+    let rev_list = List.rev expr'_list in
     match rev_list with
-    | [] -> factory []
-    | expr' :: rest -> 
-        let annotate_rev_list = annotate_list_not_in_tail_pos rev_list in
-        let annotate_last = annotate_traversal expr' is_in_tp in
-        let annotate_list = List.rev (annotate_last :: annotate_rev_list) in
-          factory annotate_list
+    | [] -> []
+    | expr' :: rest ->
+      let annotate_rev_list = annotate_list_not_in_tail_pos rev_list in
+      let annotate_last = annotate_traversal expr' is_in_tp in
+      let annotate_list = List.rev (annotate_last :: annotate_rev_list) in
+      annotate_list
 
-  and annotate_assignment_expr' = fun var expr' factory ->
-    factory var (annotate_traversal expr' false)
+  and annotate_assignment_expr' = fun value_expr' ->
+    annotate_traversal value_expr' false
 
-  and annotate_lambda = fun body_expr' factory ->
-    factory (annotate_traversal body_expr' true)
-
+  and annotate_lambda = fun body_expr' ->
+    annotate_traversal body_expr' true
   and annotate_lambda_simple = fun args_names body_expr' ->
-    annotate_lambda body_expr' (fun annotated_body_expr' -> make_lambda_simple_expr' args_names annotated_body_expr')
-  
-  and annotate_lambda_opt = fun args_names arg_name_opt body_expr' ->
-    annotate_lambda body_expr' (fun annotated_body_expr' -> make_lambda_opt_expr' args_names arg_name_opt annotated_body_expr')
+    let annotated_body_expr' = annotate_lambda body_expr' in
+    LambdaSimple' (args_names, annotated_body_expr')
+  and annotate_lambda_opt = fun req_arg_names opt_arg_name body_expr' ->
+    let annotated_body_expr' = annotate_lambda body_expr' in
+    LambdaOpt' (req_arg_names, opt_arg_name, annotated_body_expr')
 
   and annotate_applic = fun expr'_operator exprs'_operands is_in_tp ->
     let annotate_exprs'_operands = annotate_list_not_in_tail_pos exprs'_operands in
     let annotate_expr'_operator = annotate_traversal expr'_operator is_in_tp in
-      if is_in_tp
-      then ApplicTP'(annotate_expr'_operator, annotate_exprs'_operands)
-      else Applic'(annotate_expr'_operator, annotate_exprs'_operands)
+    if is_in_tp
+    then ApplicTP'(annotate_expr'_operator, annotate_exprs'_operands)
+    else Applic'(annotate_expr'_operator, annotate_exprs'_operands)
 
   and annotate_traversal = fun expr' is_in_tp ->
   match expr' with
-  | Const' sexpr -> e
-  | Var' var -> e
-  | Box' var -> e
-  | BoxGet' var -> e
-  | BoxSet' (var, expr') -> e
+  | Const' _ -> e
+  | Var' _ -> e
+  | Box' _ -> e
+  | BoxGet' _ -> e
+  | BoxSet' _ -> e
   | If' (test, dit, dif) -> annotate_if test dit dif is_in_tp
-  | Seq' expr'_list -> annotate_list expr'_list is_in_tp make_seq_expr'
-  | Set' (var, expr') -> annotate_assignment_expr' var expr' make_set_expr'
-  | Def' (var, expr') -> annotate_assignment_expr' var expr' make_def_expr'
-  | Or' expr'_list -> annotate_list expr'_list is_in_tp make_or_expr'
+  | Seq' expr'_list -> Seq' (annotate_list expr'_list is_in_tp)
+  | Set' (var_expr', value_expr') -> Set' (var_expr', (annotate_assignment_expr' value_expr'))
+  | Def' (var_expr', value_expr') -> Def' (var_expr', (annotate_assignment_expr' value_expr'))
+  | Or' expr'_list -> Or' (annotate_list expr'_list is_in_tp)
   | LambdaSimple' (args_names, body_expr') -> annotate_lambda_simple args_names body_expr'
-  | LambdaOpt' (args_names, arg_name_opt, body_expr') -> annotate_lambda_opt args_names arg_name_opt body_expr'
+  | LambdaOpt' (req_arg_names, opt_arg_name, body_expr') -> annotate_lambda_opt req_arg_names opt_arg_name body_expr'
   | Applic' (expr'_operator, exprs'_operands) -> annotate_applic expr'_operator exprs'_operands is_in_tp
-  | ApplicTP' (expr'_operator, exprs'_operands) -> raise X_syntax_error in
-  
-  annotate_traversal e false;;
 
+  (* impossible case, were annotate right now,
+     so if we got an ApplicTP', it's probably a bug *)
+  | ApplicTP' (expr'_operator, exprs'_operands) -> raise X_syntax_error in
+
+  annotate_traversal e false;;
 
 let annotate_lexical_addresses e = annotate_lexical_addresses_helper e;;
 
