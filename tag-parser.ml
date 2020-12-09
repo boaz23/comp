@@ -201,10 +201,10 @@ let expend_pset_macro = fun bindings ->
   | Nil -> make_begin_sexpr Nil
 
   (* exactly 1 binding, equivalent to a set! *)
-  | Pair(Pair(var_sexpr, value_exp), Nil) -> make_set_sexpr_raw var_sexpr value_exp
+  | Pair(Pair(var_sexpr, Pair(value_exp, Nil)), Nil) -> make_set_sexpr_raw var_sexpr value_exp
 
   (* at least 2 bindings *)
-  | Pair(Pair(var_sexpr, value_exp), rest_bindings) ->
+  | Pair(Pair(var_sexpr, Pair(value_exp, Nil)), rest_bindings) ->
     let var_name = extract_symbol_string var_sexpr in
     let var_prev_value_var_name = var_name ^ "-prev-value" in
     let var_new_value_var_name = var_name ^ "-new-value" in
