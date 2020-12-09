@@ -218,14 +218,14 @@ let expend_pset_macro = fun bindings ->
           let args = make_args_sexpr [var_sexpr] in
           let body =
             let rest_pset_exp = Pair(Symbol "pset!", rest_bindings) in
-            make_body_sexpr [rest_pset_exp] in
-          make_lambda_sexpr args body in
-        make_binding_sexpr rest_pset_var_name rest_pset_delayed_binding in
-      make_bindings_sexpr [
-        var_prev_value_binding;
-        var_new_value_binding;
-        rest_pset_delayed_binding
-      ] in
+          make_body_sexpr [rest_pset_exp] in
+        make_lambda_sexpr args body in
+      make_binding_sexpr rest_pset_var_name rest_pset_lambda in
+    make_bindings_sexpr [
+      var_prev_value_binding;
+      var_new_value_binding;
+      rest_pset_delayed_binding
+    ] in
 
     let body =
       let assign_var_set_exp = make_set_sexpr_raw var_sexpr (make_var_sexpr var_new_value_var_name) in
