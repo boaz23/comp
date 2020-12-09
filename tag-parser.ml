@@ -194,23 +194,6 @@ let expand_mit_define_macro = fun var_name args body ->
   make_define_sexpr var_name (make_lambda_sexpr args body);;
 
 let expend_pset_macro = fun bindings ->
-  match bindings with
-  (* no bindings *)
-  | Nil -> Const Void
-
-  (* exactly 1 binding, equivalent to a set! *)
-  | Pair(Pair(var_sexpr, value_exp), Nil) -> make_set_sexpr_raw var_sexpr value_exp
-
-  (* at least 2 bindings *)
-  | Pair(Pair(var_sexpr, value_exp), rest_bindings) ->
-    match
-    let first_var_name = extract_symbol_string var_sexpr in
-    let first_var_prev_value_binding = make_binding_sexpr (first_var_name ^ "-prev-value") var_sexpr in
-    let first_var_new_value_binding = make_binding_sexpr (first_var_name ^ "-new-value") value_exp in
-    let rest_pset_delayed = make_lambda_sexpr
-
-  (* invalid syntax, covered for completeness and for clean compile without warnings *)
-  | _ -> raise X_syntax_error;;
   let (var_sexprs, value_exps) = ocaml_lists_pair_from_sexpr_bindings bindings in
   match var_sexprs, value_exps with
   | var_sexpr :: [], value_exp :: [] -> make_set_sexpr_raw var_sexpr value_exp
