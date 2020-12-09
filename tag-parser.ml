@@ -121,9 +121,13 @@ let ocaml_lists_pair_from_sexpr_bindings = fun sexpr_list ->
 
 (*
 --------------------------------------------------------------------------------
------------------------------- S-Expr constructors -----------------------------
+----------------------- S-Expr constructors and functions ----------------------
 --------------------------------------------------------------------------------
 *)
+let extract_symbol_string = function
+  | Symbol(symbol) -> symbol
+  | _ -> raise X_syntax_error;;
+
 let make_list_sexpr_from = fun exp ->
   Pair(exp, Nil)
 
@@ -132,11 +136,15 @@ let make_var_sexpr = fun var_name ->
 
 let make_app_sexpr = fun operator operands ->
   Pair(operator, operands);;
+let make_operands_sexpr = fun operands ->
+  sexpr_proper_list_from_ocaml_list operands;;
 
 let make_lambda_sexpr = fun args body ->
   Pair(Symbol "lambda", Pair(args, body));;
 let make_body_sexpr = fun exps ->
   sexpr_proper_list_from_ocaml_list exps;;
+let make_args_sexpr = fun arg_names ->
+  sexpr_proper_list_from_ocaml_list arg_names;;
 let make_delayed_sexpr = fun exp ->
   make_lambda_sexpr Nil (make_body_sexpr [exp]);;
 
@@ -188,33 +196,59 @@ let expand_mit_define_macro = fun var_name args body ->
   make_define_sexpr var_name (make_lambda_sexpr args body);;
 
 let expend_pset_macro = fun bindings ->
-  let (var_sexprs, value_exps) = ocaml_lists_pair_from_sexpr_bindings bindings in
-  match var_sexprs, value_exps with
-  | var_sexpr :: [], value_exp :: [] -> make_set_sexpr_raw var_sexpr value_exp
-  | _ ->
-    let var_sexpr_generator = fun i ->
-      let var_name_generator = fun i -> "v_" ^ (string_of_int i) in
-      make_var_sexpr (var_name_generator i) in
+  match bindings with
+  (* no bindings *)
+  | Nil -> make_begin_sexpr Nil
+
+  (* exactly 1 binding, equivalent to a set! *)
+  | Pair(Pair(var_sexpr, value_exp), Nil) -> make_set_sexpr_raw var_sexpr value_exp
+
+  (* at least 2 bindings *)
+  | Pair(Pair(var_sexpr, value_exp), rest_bindings) ->
+    let var_name = extract_symbol_string var_sexpr in
+    let var_prev_value_var_name = var_name ^ "-prev-value" in
+    let var_new_value_var_name = var_name ^ "-new-value" in
+    let rest_pset_var_name = "pset-rest-" ^ var_name in
 
     let bindings =
-      let bindings_list = List.mapi
-        (fun i value_exp -> make_binding_sexpr_raw (var_sexpr_generator i) value_exp)
-        value_exps in
-      make_bindings_sexpr bindings_list in
+      let var_prev_value_binding = make_binding_sexpr var_prev_value_var_name var_sexpr in
+      let var_new_value_binding = make_binding_sexpr var_new_value_var_name value_exp in
+      let rest_pset_delayed_binding =
+        let rest_pset_lambda =
+          let args = make_args_sexpr [var_sexpr] in
+          let body =
+            let rest_pset_exp = Pair(Symbol "pset!", rest_bindings) in
+          make_body_sexpr [rest_pset_exp] in
+        make_lambda_sexpr args body in
+      make_binding_sexpr rest_pset_var_name rest_pset_lambda in
+    make_bindings_sexpr [
+      var_prev_value_binding;
+      var_new_value_binding;
+      rest_pset_delayed_binding
+    ] in
 
     let body =
-      let body_exps = List.mapi
-        (fun i var_sexpr -> make_set_sexpr_raw var_sexpr (var_sexpr_generator i))
-        var_sexprs in
-      make_body_sexpr body_exps in
-    make_let_sexpr bindings body;;
+      let assign_var_set_exp = make_set_sexpr_raw var_sexpr (make_var_sexpr var_new_value_var_name) in
+      let apply_rest_pset =
+        let rest_pset_var_sexpr = make_var_sexpr rest_pset_var_name in
+        let var_prev_value_operand = make_operands_sexpr [make_var_sexpr var_prev_value_var_name] in
+        make_app_sexpr rest_pset_var_sexpr var_prev_value_operand in
+      make_body_sexpr [
+        assign_var_set_exp;
+        apply_rest_pset
+      ] in
+
+    make_let_sexpr bindings body
+
+  (* invalid syntax, covered for completeness and for clean compile without warnings *)
+  | _ -> raise X_syntax_error;;
 
 let expand_let_macro = fun bindings body ->
   let (var_sexprs_list, value_exps_list) = ocaml_lists_pair_from_sexpr_bindings bindings in
-  let var_sexprs = sexpr_proper_list_from_ocaml_list var_sexprs_list in
-  let value_exps = sexpr_proper_list_from_ocaml_list value_exps_list in
-  make_app_sexpr (make_lambda_sexpr var_sexprs body)
-                  value_exps;;
+  let var_sexprs = make_args_sexpr var_sexprs_list in
+  let value_exps = make_body_sexpr value_exps_list in
+  let lambda = make_lambda_sexpr var_sexprs body in
+  make_app_sexpr lambda value_exps;;
 
 let expand_let_star_macro = fun bindings body ->
   match bindings with
@@ -391,6 +425,15 @@ and parse_var_form = fun symbol ->
   then Var symbol
   else raise X_syntax_error
 
+and extract_var_name = fun symbol_sexpr ->
+  let symbol_string = extract_symbol_string symbol_sexpr in
+  let var_expr = parse_var_form symbol_string in
+  match var_expr with
+  | Var var_name -> var_name
+
+  (* cannot reach this case, here for completeness and in order to compile without warnings *)
+  | _ -> raise X_syntax_error
+
 and parse_if_form = fun test dit dif ->
   let test = tag_parse test in
   let dit = tag_parse dit in
@@ -438,14 +481,7 @@ and parse_lambda_form = fun args body_exps ->
     | Symbol(variadic_arg) -> LambdaOpt([], variadic_arg, body)
 
     | Pair _ -> (
-      let extract_arg_name = function
-        | Symbol(symbol) -> (
-          match (parse_var_form symbol) with
-          | Var arg_name -> arg_name
-          | _ -> raise X_syntax_error (* cannot reach this case *)
-        )
-        | _ -> raise X_syntax_error in
-      let extract_arg_names = fun args -> List.map extract_arg_name args in
+      let extract_arg_names = fun args -> List.map extract_var_name args in
 
       let has_duplicates = fun list ->
         let no_duplicates_list = List.sort_uniq String.compare list in
