@@ -10,7 +10,7 @@ let read_expr = fun f string ->
   )
   with
   | PC.X_no_match -> Printf.printf "Reader got error at { %s }\n" string
-  | X_syntax_error -> Printf.printf "Tag parser got error at { %s }\n" string
+  | _ -> Printf.printf "Tag parser got error at { %s }\n" string
 
 let read_expr' = fun f string ->
   read_expr
@@ -349,7 +349,7 @@ let test_annotate_lexical_addresses = fun () ->
             Var' (VarFree "v")
           ]
         )
-      ))
+      ));;
 
 let main = fun () ->
   test_annotate_lexical_addresses ();;
