@@ -385,14 +385,23 @@ let macro_expansion_tests() =
     compare_macro_expansion_from_string_shallow "(pset! (x ((lambda (n) n) 1)))"
         "(set! x ((lambda (n) n) 1))";
     compare_macro_expansion_from_string_shallow "(pset! (x y) (y x))"
-        "(let ((v_0 y) (v_1 x))
-           (set! x v_0)
-           (set! y v_1))";
+        "(let ((x-prev-value x)
+               (x-new-value y)
+               (pset-rest-x (lambda (x) (pset! (y x)))))
+           (set! x x-new-value)
+           (pset-rest-x x-prev-value))";
     compare_macro_expansion_from_string_shallow "(pset! (x y) (y x) (x 1))"
-        "(let ((v_0 y) (v_1 x) (v_2 1))
-           (set! x v_0)
-           (set! y v_1)
-           (set! x v_2))";
+        "(let ((x-prev-value x)
+               (x-new-value y)
+               (pset-rest-x (lambda (x) (pset! (y x) (x 1)))))
+           (set! x x-new-value)
+           (pset-rest-x x-prev-value))";
+    compare_macro_expansion_from_string_shallow "(pset! (x z) (y x) (z y))"
+        "(let ((x-prev-value x)
+               (x-new-value z)
+               (pset-rest-x (lambda (x) (pset! (y x) (z y)))))
+           (set! x x-new-value)
+           (pset-rest-x x-prev-value))";
 
     (* cond *)
     compare_macro_expansion_from_string_shallow "(cond ((= #t 1) 1))"
@@ -499,18 +508,44 @@ let genaral_tests() =
             [Const(Sexpr(Symbol("arg1")))])];
 
     parse_and_compare_from_string
-        "(define var1 1)
-         (define var2 'hello)
-         (pset! (var1 var2) (var2 var1))
+        "(define x 1)
+         (define y 'hello)
+         (pset! (x y) (y x))
         "
-        [Def(Var("var1"), Const(Sexpr(Number(Fraction(1, 1)))));
-         Def(Var("var2"), Const(Sexpr(Symbol("hello"))));
-         Applic(LambdaSimple(["v_0"; "v_1"],
+        [Def(Var("x"), Const(Sexpr(Number(Fraction(1, 1)))));
+         Def(Var("y"), Const(Sexpr(Symbol("hello"))));
+         Applic(LambdaSimple(["x-prev-value"; "x-new-value"; "pset-rest-x"],
                 Seq[
-                    Set(Var("var1"), Var("v_0"));
-                    Set(Var("var2"), Var("v_1"))
-                ]),
-            [Var("var2"); Var("var1")])];
+                    Set(Var("x"), Var("x-new-value"));
+                    Applic(Var "pset-rest-x", [Var "x-prev-value"])
+                ]), [
+                  Var("x");
+                  Var("y");
+                  LambdaSimple(["x"], Set(Var "y", Var "x"))
+                ])];
+
+    parse_and_compare_from_string
+        "(pset! (x z) (y x) (z y))"
+        [Applic(LambdaSimple(["x-prev-value"; "x-new-value"; "pset-rest-x"],
+                Seq[
+                    Set(Var("x"), Var("x-new-value"));
+                    Applic(Var "pset-rest-x", [Var "x-prev-value"])
+                ]), [
+                  Var("x");
+                  Var("z");
+                  LambdaSimple(
+                    ["x"],
+                    Applic(LambdaSimple(["y-prev-value"; "y-new-value"; "pset-rest-y"],
+                      Seq[
+                          Set(Var("y"), Var("y-new-value"));
+                          Applic(Var "pset-rest-y", [Var "y-prev-value"])
+                      ]), [
+                        Var("y");
+                        Var("x");
+                        LambdaSimple(["y"], Set(Var "z", Var "y"))
+                      ])
+                  )
+                ])];
 
     parse_and_compare_from_string
         "(letrec (
