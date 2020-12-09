@@ -10,7 +10,8 @@ let read_expr = fun f string ->
   )
   with
   | PC.X_no_match -> Printf.printf "Reader got error at { %s }\n" string
-  | _ -> Printf.printf "Tag parser got error at { %s }\n" string
+  | X_not_yet_implemented -> Printf.printf "Function is not yet implemented\n"
+  | _ -> Printf.printf "Tag parser got error at { %s }\n" string;;
 
 let read_expr' = fun f string ->
   read_expr
@@ -20,7 +21,7 @@ let read_expr' = fun f string ->
         f expr'
       )
       with X_syntax_error -> Printf.printf "Semantics analysis got error at { %s }\n" string)
-    string
+    string;;
 
 let rec sexpr_pair_fold_left f_list f_remainder acc sexpr =
   match sexpr with
@@ -35,7 +36,7 @@ let sexpr_char_to_string = function
   | '\r' -> "return"
   | ' ' -> "space"
   | '\t' -> "tab"
-  | c -> String.make 1 c
+  | c -> String.make 1 c;;
 
 let rec sexpr_pair_to_string = fun pair ->
   let f_pair_inner = fun (acc, is_first) sexpr ->
@@ -64,7 +65,7 @@ and sexpr_to_string = function
   | String s -> Printf.sprintf "\"%s\"" s
   | Symbol s -> s
   | Pair(Symbol "quote", Pair(sexpr, Nil)) -> Printf.sprintf "'%s" (sexpr_to_string sexpr)
-  | (Pair _ as pair) -> sexpr_pair_to_string pair
+  | (Pair _ as pair) -> sexpr_pair_to_string pair;;
 
 let constant_to_string = function
   | Sexpr sexpr -> Printf.sprintf "%s\n" (sexpr_to_string sexpr)
@@ -75,7 +76,7 @@ let var_to_string = fun var ->
   | VarFree var_name -> Printf.sprintf "VarFree %s" var_name
   | VarParam (var_name, var_pos) -> Printf.sprintf "VarParam (%s, %d))" var_name var_pos
   | VarBound (var_name, major, minor) -> Printf.sprintf "VarBound (%s, %d, %d)" var_name major minor in
-  Printf.sprintf "Var' (%s)" s
+  Printf.sprintf "Var' (%s)" s;;
 
 let rec expr'_list_to_string = fun expr's_list ->
   let (s, _) =
@@ -134,7 +135,7 @@ let make_abstract_test_analysis_from_string = fun f_transformation f_out_transfo
         let actual_t = f_out_transformation actual in
         let expected_t = f_out_transformation expected in
         f_report_error string actual_t expected_t)
-    string
+    string;;
 
 let make_test_analysis_from_string = fun f string expected ->
   make_abstract_test_analysis_from_string
@@ -147,10 +148,23 @@ let make_test_analysis_from_string = fun f string expected ->
         expected_s
         actual_s)
     string
-    expected
+    expected;;
 
 let test_annotate_lexical_addresses_case = fun string expected ->
-  make_test_analysis_from_string (fun expr' -> expr') string expected
+  make_test_analysis_from_string (fun expr' -> expr') string expected;;
+
+let test_annotate_tail_calls_case = fun string expected ->
+  make_test_analysis_from_string
+    (fun expr' ->
+      try let expr' = Semantics.annotate_tail_calls expr' in
+        expr'
+      with X_syntax_error ->
+        begin
+          Printf.printf "Tail call annotation got error";
+          raise X_syntax_error
+        end;)
+    string
+    expected;;
 
 let test_annotate_lexical_addresses = fun () ->
   test_annotate_lexical_addresses_case
@@ -351,5 +365,226 @@ let test_annotate_lexical_addresses = fun () ->
         )
       ));;
 
+let test_annotate_tail_calls = fun () ->
+  test_annotate_tail_calls_case
+    "(lambda (x)
+      (f (g (g x))))"
+    (LambdaSimple' (
+      ["x"],
+      ApplicTP' (
+        Var' (VarFree "f"), [
+          Applic' (
+            Var' (VarFree "g"),
+            [Applic' (Var' (VarFree "g"), [Var' (VarParam ("x", 0))])]
+          )
+        ]
+      )
+    ));
+
+  test_annotate_tail_calls_case
+    "(lambda (x)
+      (f (lambda (y)
+          (g x y))))"
+    (LambdaSimple' (
+      ["x"],
+      ApplicTP' (
+        Var' (VarFree "f"), [
+          LambdaSimple' (
+            ["y"],
+            ApplicTP' (
+              (Var' (VarFree "g")), [
+                Var' (VarBound ("x", 0, 0));
+                Var' (VarParam ("y", 0))
+              ]
+            )
+          )
+        ]
+      )
+    ));
+
+  test_annotate_tail_calls_case
+    "(lambda (x y z w)
+      (if (foo? x)
+          (goo y)
+          (boo (doo z))))"
+    (LambdaSimple' (
+      ["x"; "y"; "z"; "w"],
+      If' (
+        Applic' (Var' (VarFree "foo?"), [Var' (VarParam ("x", 0))]),
+        ApplicTP' (Var' (VarFree "goo"), [Var' (VarParam ("y", 1))]),
+        ApplicTP' (
+          Var' (VarFree "boo"),
+          [Applic' (Var' (VarFree "doo"), [Var' (VarParam ("z", 2))])]
+        )
+      )
+    ));
+
+  test_annotate_tail_calls_case
+    "(lambda (x y z)
+      (f (if (g? x)
+              (h y)
+              (w z))))"
+    (LambdaSimple' (
+      ["x"; "y"; "z"],
+      ApplicTP' (
+        Var' (VarFree "f"), [
+          If' (
+            Applic' (Var' (VarFree "g?"), [Var' (VarParam ("x", 0))]),
+            Applic' (Var' (VarFree "h"), [Var' (VarParam ("y", 1))]),
+            Applic' (Var' (VarFree "w"), [Var' (VarParam ("z", 2))])
+          )
+        ]
+      )
+    ));
+
+  test_annotate_tail_calls_case
+    "(lambda (a b)
+      (f a)
+      (g a b)
+      (display \"done!\\n\"))"
+    (LambdaSimple' (
+      ["a"; "b"],
+      Seq' [
+        Applic' (Var' (VarFree "f"), [Var' (VarParam ("a", 0))]);
+        Applic' (Var' (VarFree "g"), [Var' (VarParam ("a", 0)); Var' (VarParam ("b", 1))]);
+        ApplicTP' (Var' (VarFree "display"), [Const' (Sexpr (String "done!\\n"))])
+      ]
+    ));
+
+  test_annotate_tail_calls_case
+    "(lambda (a b)
+      (f (begin a (display \"done!\\n\")) (g a b)))"
+    (LambdaSimple' (
+      ["a"; "b"],
+      ApplicTP' (Var' (VarFree "f"), [
+        Seq' [
+          Var' (VarParam ("a", 0));
+          Applic' (Var' (VarFree "display"), [Const' (Sexpr (String "done!\\n"))]);
+          Applic' (Var' (VarFree "g"), [Var' (VarParam ("a", 0)); Var' (VarParam ("b", 1))]);
+        ]
+      ]);
+    ));
+
+  test_annotate_tail_calls_case
+    "(lambda (x y z)
+      (and (f x) (g y) (h z)))"
+    (LambdaSimple' (
+      [],
+      If' (
+        Applic' (Var' (VarFree "f"), [Var' (VarParam ("x", 0))]),
+        If' (
+          Applic' (Var' (VarFree "g"), [Var' (VarParam ("y", 1))]),
+          ApplicTP' (Var' (VarFree "h"), [Var' (VarParam ("z", 2))]),
+          Const' (Sexpr (Bool false))
+        ),
+        Const' (Sexpr (Bool false))
+      )
+    ));
+
+  test_annotate_tail_calls_case
+    "(lambda (x y)
+      (or (f (g x)) y (f y)))"
+    (LambdaSimple' (
+      ["x"; "y"],
+      Or' [
+        Applic' (
+          Var' (VarFree "f"),
+          [Applic' (Var' (VarFree "g"), [Var' (VarParam ("x", 0))])]
+        );
+        Var' (VarParam ("y", 1));
+        ApplicTP' (
+          Var' (VarFree "f"),
+          [Var' (VarParam ("y", 1))]
+        );
+      ]
+    ));
+
+  test_annotate_tail_calls_case
+    "(lambda (x y)
+      (or (f (g x)) y (f y))
+      x)"
+    (LambdaSimple' (
+      ["x"; "y"],
+      Seq' [
+        Or' [
+          Applic' (
+            Var' (VarFree "f"),
+            [Applic' (Var' (VarFree "g"), [Var' (VarParam ("x", 0))])]
+          );
+          Var' (VarParam ("y", 1));
+          Applic' (
+            Var' (VarFree "f"),
+            [Var' (VarParam ("y", 1))]
+          );
+        ];
+        Var' (VarParam ("x", 0))
+      ]
+    ));
+
+  test_annotate_tail_calls_case
+    "(lambda (x y)
+      (set! x (f y)))"
+    (LambdaSimple' (
+      [],
+      Set' (
+        VarParam ("x", 0),
+        Applic' (
+          Var' (VarFree "f"),
+          [Var' (VarParam ("y", 1))]
+        )
+      )
+    ));
+
+  test_annotate_tail_calls_case
+    "(lambda (x)
+      (set! x (f (lambda (y)
+                  (g x y)))))"
+    (LambdaSimple' (
+      [],
+      Set' (
+        VarParam ("x", 0),
+        Applic' (
+          Var' (VarFree "f"), [
+            LambdaSimple' (
+              ["y"],
+              ApplicTP' (
+                Var' (VarFree "g"),
+                [Var' (VarBound ("x", 0, 0)); Var' (VarParam ("y", 0))]
+              )
+            )
+          ]
+        )
+      )
+    ));
+
+  test_annotate_tail_calls_case
+    "(let ((x (f y))
+           (y (g x)))
+      (goo (boo x) y))"
+    (Applic' (
+      LambdaSimple' (
+        ["x"; "y"],
+        ApplicTP' (
+          Var' (VarFree ("goo")), [
+            Applic' (
+              Var' (VarFree "boo"),
+              [Var' (VarParam ("x", 0))]
+            );
+            Var' (VarParam ("y", 1))
+          ]
+        )
+      ), [
+        Applic' (
+          Var' (VarFree "f"),
+          [Var' (VarFree "y")]
+        );
+        Applic' (
+          Var' (VarFree "g"),
+          [Var' (VarFree "x")]
+        );
+      ]
+    ));;
+
 let main = fun () ->
-  test_annotate_lexical_addresses ();;
+  test_annotate_lexical_addresses ();
+  test_annotate_tail_calls();;
