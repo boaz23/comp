@@ -38,6 +38,24 @@ let sexpr_char_to_string = function
   | '\t' -> "tab"
   | c -> String.make 1 c;;
 
+let sexpr_string_to_string = fun s ->
+  let chars_list = string_to_list s in
+  let chars_list = List.fold_right
+    (fun c acc ->
+      let l =
+      match c with
+      | '\\' -> ['\\'; '\\']
+      | '"' -> ['\\'; '"']
+      | '\t' -> ['\\'; 't']
+      | '\012' -> ['\\'; 'f']
+      | '\n' -> ['\\'; 'n']
+      | '\r' -> ['\\'; 'r']
+      | _ -> [c] in
+      l @ acc)
+    chars_list
+    [] in
+  list_to_string chars_list
+
 let rec sexpr_pair_to_string = fun pair ->
   let f_pair_inner = fun (acc, is_first) sexpr ->
     let sexpr_string = sexpr_to_string sexpr in
@@ -68,7 +86,7 @@ and sexpr_to_string = function
   | (Pair _ as pair) -> sexpr_pair_to_string pair;;
 
 let constant_to_string = function
-  | Sexpr sexpr -> Printf.sprintf "%s\n" (sexpr_to_string sexpr)
+  | Sexpr sexpr -> sexpr_to_string sexpr
   | Void -> "Void";;
 
 let var_to_string = fun var ->
@@ -143,7 +161,7 @@ let make_test_analysis_from_string = fun f string expected ->
     expr'_to_string
     (fun s actual_s expected_s ->
       Printf.printf
-        "error in test { %s }\n  expected: { %s }\n  actual: { %s }\n"
+        "error in test:  \n{ %s }\n  expected: { %s }\n  actual: { %s }\n"
         s
         expected_s
         actual_s)
@@ -447,7 +465,7 @@ let test_annotate_tail_calls = fun () ->
       Seq' [
         Applic' (Var' (VarFree "f"), [Var' (VarParam ("a", 0))]);
         Applic' (Var' (VarFree "g"), [Var' (VarParam ("a", 0)); Var' (VarParam ("b", 1))]);
-        ApplicTP' (Var' (VarFree "display"), [Const' (Sexpr (String "done!\\n"))])
+        ApplicTP' (Var' (VarFree "display"), [Const' (Sexpr (String "done!\n"))])
       ]
     ));
 
@@ -456,12 +474,13 @@ let test_annotate_tail_calls = fun () ->
       (f (begin a (display \"done!\\n\")) (g a b)))"
     (LambdaSimple' (
       ["a"; "b"],
-      ApplicTP' (Var' (VarFree "f"), [
+      ApplicTP' (
+        Var' (VarFree "f"), [
         Seq' [
           Var' (VarParam ("a", 0));
-          Applic' (Var' (VarFree "display"), [Const' (Sexpr (String "done!\\n"))]);
-          Applic' (Var' (VarFree "g"), [Var' (VarParam ("a", 0)); Var' (VarParam ("b", 1))]);
-        ]
+          Applic' (Var' (VarFree "display"), [Const' (Sexpr (String "done!\n"))]);
+        ];
+        Applic' (Var' (VarFree "g"), [Var' (VarParam ("a", 0)); Var' (VarParam ("b", 1))]);
       ]);
     ));
 
@@ -469,7 +488,7 @@ let test_annotate_tail_calls = fun () ->
     "(lambda (x y z)
       (and (f x) (g y) (h z)))"
     (LambdaSimple' (
-      [],
+      ["x"; "y"; "z"],
       If' (
         Applic' (Var' (VarFree "f"), [Var' (VarParam ("x", 0))]),
         If' (
@@ -525,7 +544,7 @@ let test_annotate_tail_calls = fun () ->
     "(lambda (x y)
       (set! x (f y)))"
     (LambdaSimple' (
-      [],
+      ["x"; "y"],
       Set' (
         VarParam ("x", 0),
         Applic' (
@@ -540,7 +559,7 @@ let test_annotate_tail_calls = fun () ->
       (set! x (f (lambda (y)
                   (g x y)))))"
     (LambdaSimple' (
-      [],
+      ["x"],
       Set' (
         VarParam ("x", 0),
         Applic' (

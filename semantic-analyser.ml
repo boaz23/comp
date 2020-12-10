@@ -139,7 +139,7 @@ let annotate_lexical_addresses_helper = fun e ->
 
   annotate_traversal 0 e;;
 
-let annotate_tail_calls_helpr = fun e ->
+let annotate_tail_calls_helper = fun e ->
   let rec annotate_if = fun test dit dif is_in_tp ->
     let annotate_test = annotate_traversal test false in
     let annotate_dit = annotate_traversal dit is_in_tp in
@@ -154,7 +154,7 @@ let annotate_tail_calls_helpr = fun e ->
     match rev_list with
     | [] -> []
     | expr' :: rest ->
-      let annotate_rev_list = annotate_list_not_in_tail_pos rev_list in
+      let annotate_rev_list = annotate_list_not_in_tail_pos rest in
       let annotate_last = annotate_traversal expr' is_in_tp in
       let annotate_list = List.rev (annotate_last :: annotate_rev_list) in
       annotate_list
@@ -175,16 +175,16 @@ let annotate_tail_calls_helpr = fun e ->
     let annotate_exprs'_operands = annotate_list_not_in_tail_pos exprs'_operands in
     let annotate_expr'_operator = annotate_traversal expr'_operator is_in_tp in
     if is_in_tp
-    then ApplicTP'(annotate_expr'_operator, annotate_exprs'_operands)
-    else Applic'(annotate_expr'_operator, annotate_exprs'_operands)
+    then ApplicTP' (annotate_expr'_operator, annotate_exprs'_operands)
+    else Applic' (annotate_expr'_operator, annotate_exprs'_operands)
 
   and annotate_traversal = fun expr' is_in_tp ->
   match expr' with
-  | Const' _ -> e
-  | Var' _ -> e
-  | Box' _ -> e
-  | BoxGet' _ -> e
-  | BoxSet' _ -> e
+  | Const' _ -> expr'
+  | Var' _ -> expr'
+  | Box' _ -> expr'
+  | BoxGet' _ -> expr'
+  | BoxSet' _ -> expr'
   | If' (test, dit, dif) -> annotate_if test dit dif is_in_tp
   | Seq' expr'_list -> Seq' (annotate_list expr'_list is_in_tp)
   | Set' (var_expr', value_expr') -> Set' (var_expr', (annotate_assignment_expr' value_expr'))
@@ -202,7 +202,7 @@ let annotate_tail_calls_helpr = fun e ->
 
 let annotate_lexical_addresses e = annotate_lexical_addresses_helper e;;
 
-let annotate_tail_calls e = raise X_not_yet_implemented;;
+let annotate_tail_calls e = annotate_tail_calls_helper e;;
 
 let box_set e = raise X_not_yet_implemented;;
 
