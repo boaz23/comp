@@ -10,8 +10,7 @@ let read_expr = fun f string ->
   )
   with
   | PC.X_no_match -> Printf.printf "Reader got error at { %s }\n" string
-  | X_not_yet_implemented -> Printf.printf "Function is not yet implemented\n"
-  | _ -> Printf.printf "Tag parser got error at { %s }\n" string;;
+  | X_not_yet_implemented -> Printf.printf "Function is not yet implemented\n";;
 
 let read_expr' = fun f string ->
   read_expr
@@ -90,11 +89,10 @@ let constant_to_string = function
   | Void -> "Void";;
 
 let var_to_string = fun var ->
-  let s = match var with
-  | VarFree var_name -> Printf.sprintf "VarFree %s" var_name
-  | VarParam (var_name, var_pos) -> Printf.sprintf "VarParam (%s, %d))" var_name var_pos
-  | VarBound (var_name, major, minor) -> Printf.sprintf "VarBound (%s, %d, %d)" var_name major minor in
-  Printf.sprintf "Var' (%s)" s;;
+  match var with
+  | VarFree var_name -> Printf.sprintf "VarFree \"%s\"" var_name
+  | VarParam (var_name, var_pos) -> Printf.sprintf "VarParam (\"%s\", %d))" var_name var_pos
+  | VarBound (var_name, major, minor) -> Printf.sprintf "VarBound (\"%s\", %d, %d)" var_name major minor;;
 
 let rec expr'_list_to_string = fun expr's_list ->
   let (s, _) =
@@ -110,14 +108,15 @@ let rec expr'_list_to_string = fun expr's_list ->
   Printf.sprintf "[%s]" s
 
 and lambda_to_stirng = fun lambda_name args_list arg_opt expr' ->
-    let args_list_s = String.concat "; " args_list in
-    let args_list_s = "[" ^ args_list_s ^ "]" in
-    let expr'_s = expr'_to_string expr' in
-    let arg_opt_s =
-      if arg_opt <> ""
-      then ", " ^ arg_opt
-      else "" in
-    Printf.sprintf "%s (%s%s, (%s))" lambda_name args_list_s arg_opt_s expr'_s
+  let args_list = List.map (fun s -> "\"" ^ s ^ "\"") args_list in
+  let args_list_s = String.concat "; " args_list in
+  let args_list_s = "[" ^ args_list_s ^ "]" in
+  let expr'_s = expr'_to_string expr' in
+  let arg_opt_s =
+    if arg_opt <> ""
+    then ", \"" ^ arg_opt ^ "\""
+    else "" in
+  Printf.sprintf "%s (%s%s, (%s))" lambda_name args_list_s arg_opt_s expr'_s
 
 and applic_to_string = fun applic_name expr' expr'_list ->
   let expr'_s = expr'_to_string expr' in
@@ -126,9 +125,9 @@ and applic_to_string = fun applic_name expr' expr'_list ->
 
 and expr'_to_string = function
   | Const' const -> Printf.sprintf "Const' %s" (constant_to_string const)
-  | Var' var -> var_to_string var
-  | Box' var -> Printf.sprintf "Box' %s" (var_to_string var)
-  | BoxGet' var -> Printf.sprintf "BoxGet' %s" (var_to_string var)
+  | Var' var -> Printf.sprintf "Var' (%s)" (var_to_string var)
+  | Box' var -> Printf.sprintf "Box' (%s)" (var_to_string var)
+  | BoxGet' var -> Printf.sprintf "BoxGet' (%s)" (var_to_string var)
   | BoxSet' (var, expr') -> Printf.sprintf "BoxSet' ((%s), (%s))" (var_to_string var) (expr'_to_string expr')
   | If' (test, dit, dif) ->
     let s_test = expr'_to_string test in
@@ -171,18 +170,32 @@ let make_test_analysis_from_string = fun f string expected ->
 let test_annotate_lexical_addresses_case = fun string expected ->
   make_test_analysis_from_string (fun expr' -> expr') string expected;;
 
-let test_annotate_tail_calls_case = fun string expected ->
+let test_annotate_tail_calls_abstract = fun f string expected ->
   make_test_analysis_from_string
     (fun expr' ->
       try let expr' = Semantics.annotate_tail_calls expr' in
-        expr'
+        f expr'
       with X_syntax_error ->
         begin
-          Printf.printf "Tail call annotation got error";
+          Printf.printf "Tail call annotation got error at { %s }\n" string;
           raise X_syntax_error
         end;)
     string
     expected;;
+let test_annotate_tail_calls_case = fun string expected ->
+  test_annotate_tail_calls_abstract (fun expr' -> expr') string expected;;
+
+let test_annotate_boxes_case = fun string expected ->
+  test_annotate_tail_calls_abstract
+    (fun expr' ->
+      try let expr' = Semantics.box_set expr' in
+        expr'
+      with X_syntax_error ->
+        begin
+          Printf.printf "Boxes annotation got error at { %s }\n" string;
+          raise X_syntax_error
+        end;)
+    string expected;;
 
 let test_annotate_lexical_addresses = fun () ->
   test_annotate_lexical_addresses_case
@@ -604,6 +617,49 @@ let test_annotate_tail_calls = fun () ->
       ]
     ));;
 
+let test_annotate_boxes = fun () ->
+  test_annotate_boxes_case
+    "(lambda (n)
+      (list
+        (lambda ()
+          (set! n (+ n 1))
+          n)
+        (lambda ()
+          (set! n 0))))"
+    (LambdaSimple' (
+      ["n"],
+      Seq' [
+        Set' (VarParam ("n", 0), Box' (VarParam ("n", 0)));
+        ApplicTP' (
+          Var' (VarFree "list"), [
+            LambdaSimple' (
+              [],
+              Seq' [
+                BoxSet' (
+                  VarBound ("n", 0, 0),
+                  Applic' (
+                    Var' (VarFree "+"), [
+                      BoxGet' (VarBound ("n", 0, 0));
+                      Const' (Sexpr (Number (Fraction (1, 1))))
+                    ]
+                  )
+                );
+                BoxGet' (VarBound ("n", 0, 0))
+              ]
+            );
+            LambdaSimple' (
+              [],
+              BoxSet' (
+                VarBound ("n", 0, 0),
+                Const' (Sexpr (Number (Fraction (0, 1))))
+              );
+            );
+          ]
+        )
+      ]
+    ));;
+
 let main = fun () ->
   test_annotate_lexical_addresses ();
-  test_annotate_tail_calls();;
+  test_annotate_tail_calls();
+  test_annotate_boxes();;

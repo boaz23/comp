@@ -230,7 +230,14 @@ let annotate_boxes_helper = fun e ->
       annotate_box_var_pos factory box_factory dest_depth annotation_args var_pos var
     | VarFree _ -> factory var in
 
-  let rec annotate_boxes_list = fun depth annotation_args expr'_list ->
+  let rec annotate_set = fun depth annotation_args var value_expr' ->
+    let annotated_value_expr' = annotate_boxes_traversal depth annotation_args value_expr' in
+    annotate_box_var
+      (fun var -> Set' (var, annotated_value_expr'))
+      (fun var -> BoxSet' (var, annotated_value_expr'))
+      depth annotation_args var
+
+  and annotate_boxes_list = fun depth annotation_args expr'_list ->
     List.map (annotate_boxes_traversal depth annotation_args) expr'_list
 
   and annotate_applic = fun factory depth annotation_args operator_expr' operands_expr'_list ->
@@ -257,12 +264,7 @@ let annotate_boxes_helper = fun e ->
       )
 
     | Seq' expr'_list -> Seq' (annotate_boxes_list depth annotation_args expr'_list)
-
-    | Set' (var, value_expr') -> annotate_box_var
-      (fun var -> Set' (var, value_expr'))
-      (fun var -> BoxSet' (var, value_expr'))
-      depth annotation_args var
-
+    | Set' (var, value_expr') -> annotate_set depth annotation_args var value_expr'
     | Def' (var, value_expr') -> Def' (var, (annotate_boxes_traversal depth annotation_args value_expr'))
     | Or' expr'_list -> Or' (annotate_boxes_list depth annotation_args expr'_list)
     | LambdaSimple' (arg_names, body_expr') -> LambdaSimple' (arg_names, (annotate_lambda depth annotation_args body_expr'))
@@ -288,9 +290,9 @@ let annotate_boxes_helper = fun e ->
 
     (* impossible case, were annotate right now,
       so if we got a box, it's probably a bug *)
-    | Box' _ -> raise X_syntax_error
-    | BoxGet' _ -> raise X_syntax_error
-    | BoxSet' _ -> raise X_syntax_error in
+    | Box' _ -> expr'
+    | BoxGet' _ -> expr'
+    | BoxSet' _ -> expr' in
 
   let annotate_boxes = fun factory annotation_args body_expr' ->
     let annotated_body_expr' =
@@ -313,7 +315,7 @@ let annotate_boxes_helper = fun e ->
     match var with
     | VarParam (_, pos) -> [(depth, pos, None, read_write)]
     | VarBound (_, depth_offset, pos) ->
-      let dest_depth = compute_bound_var_depth depth depth_offset in
+      let dest_depth = (compute_bound_var_depth depth depth_offset) - 1 in
       [(dest_depth, pos, None, read_write)]
     | VarFree _ -> [] in
 
@@ -361,11 +363,13 @@ let annotate_boxes_helper = fun e ->
       var_access in
 
     let annotated_lambda_expr' =
+      let args_pos_list = List.map (fun (_, pos, _, _) -> pos) var_access in
+      let unique_args_pos_list = List.sort_uniq compare args_pos_list in
       let annotation_args = List.map
-        (fun (_, pos, _, _) ->
+        (fun pos ->
           let arg_name = List.nth arg_names pos in
           (arg_name, pos))
-        var_access in
+        unique_args_pos_list in
       annotate_boxes factory annotation_args body_expr' in
 
     let parent_lambdas_var_accesses = List.map
