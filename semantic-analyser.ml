@@ -70,7 +70,7 @@ end;;
 module Semantics : SEMANTICS = struct
 
 let compute_bound_var_depth = fun depth var_depth_offset ->
-  depth - var_depth_offset - 1;;
+  depth - var_depth_offset - 2;;
 
 let annotate_lexical_addresses_helper = fun e ->
   let vars_map = Hashtbl.create 16 in
@@ -97,9 +97,9 @@ let annotate_lexical_addresses_helper = fun e ->
     let last_var_def = Hashtbl.find_opt vars_map var_name in
     match last_var_def with
     | Some (var_depth, var_pos) ->
-      if var_depth = depth then Var' (VarParam(var_name, var_pos))
-      else let depth_offset = compute_bound_var_depth depth var_depth in
-      Var' (VarBound(var_name, depth_offset, var_pos))
+      let depth_offset = compute_bound_var_depth depth var_depth in
+      if depth_offset < 0 then Var' (VarParam(var_name, var_pos))
+      else Var' (VarBound(var_name, depth_offset, var_pos))
     | None -> Var' (VarFree var_name)
 
   and annotate_lambda_simple = fun depth arg_names expr ->
@@ -111,10 +111,9 @@ let annotate_lexical_addresses_helper = fun e ->
     LambdaOpt' (req_arg_names, opt_arg_name, expr')
 
   and annotate_lambda = fun depth arg_names expr ->
-    let next_depth = depth + 1 in
     begin
-      add_args_to_map next_depth arg_names;
-      let expr' = annotate_traversal next_depth expr in
+      add_args_to_map depth arg_names;
+      let expr' = annotate_traversal (depth + 1) expr in
       begin
         remove_args_from_map arg_names;
         expr'
@@ -224,7 +223,7 @@ let annotate_boxes_helper = fun e ->
     else factory var in
   let annotate_box_var = fun factory box_factory depth annotation_args var ->
     match var with
-    | VarParam (_, var_pos) -> annotate_box_var_pos factory box_factory depth annotation_args var_pos var
+    | VarParam (_, var_pos) -> annotate_box_var_pos factory box_factory (depth - 1) annotation_args var_pos var
     | VarBound (_, depth_offset, var_pos) ->
       let dest_depth = compute_bound_var_depth depth depth_offset in
       annotate_box_var_pos factory box_factory dest_depth annotation_args var_pos var
@@ -304,7 +303,7 @@ let annotate_boxes_helper = fun e ->
             Set' (var_param, Box' var_param))
           annotation_args in
         let body_expr'_list =
-          let annotated_body_expr' = annotate_boxes_traversal 0 annotation_args body_expr' in
+          let annotated_body_expr' = annotate_boxes_traversal 1 annotation_args body_expr' in
           match annotated_body_expr' with
           | Seq' expr'_list -> expr'_list
           | _ -> [annotated_body_expr'] in
@@ -315,7 +314,7 @@ let annotate_boxes_helper = fun e ->
     match var with
     | VarParam (_, pos) -> [(depth, pos, None, read_write)]
     | VarBound (_, depth_offset, pos) ->
-      let dest_depth = (compute_bound_var_depth depth depth_offset) - 1 in
+      let dest_depth = compute_bound_var_depth depth depth_offset in
       [(dest_depth, pos, None, read_write)]
     | VarFree _ -> [] in
 
