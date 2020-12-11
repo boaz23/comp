@@ -143,9 +143,9 @@ let annotate_lexical_addresses_helper = fun e ->
     | Or exprs -> Or' (annotate_expr_list depth exprs)
     | LambdaSimple (arg_names, body_expr) -> annotate_lambda_simple depth arg_names body_expr
     | LambdaOpt (req_arg_names, opt_arg_name, body_expr) -> annotate_lambda_opt depth req_arg_names opt_arg_name body_expr
-    | Applic (expr_operator, exprs_operands) -> Applic' (
-        (annotate_traversal depth expr_operator),
-        (annotate_expr_list depth exprs_operands)
+    | Applic (operator_expr, operands_expr_list) -> Applic' (
+        (annotate_traversal depth operator_expr),
+        (annotate_expr_list depth operands_expr_list)
       ) in
 
   annotate_traversal 0 e;;
@@ -182,9 +182,9 @@ let annotate_tail_calls_helper = fun e ->
     let annotated_body_expr' = annotate_lambda body_expr' in
     LambdaOpt' (req_arg_names, opt_arg_name, annotated_body_expr')
 
-  and annotate_applic = fun expr'_operator exprs'_operands is_in_tp ->
-    let annotate_exprs'_operands = annotate_list_not_in_tail_pos exprs'_operands in
-    let annotate_expr'_operator = annotate_traversal expr'_operator is_in_tp in
+  and annotate_applic = fun operator_expr' operands_expr'_list is_in_tp ->
+    let annotate_expr'_operator = annotate_traversal operator_expr' is_in_tp in
+    let annotate_exprs'_operands = annotate_list_not_in_tail_pos operands_expr'_list in
     if is_in_tp
     then ApplicTP' (annotate_expr'_operator, annotate_exprs'_operands)
     else Applic' (annotate_expr'_operator, annotate_exprs'_operands)
@@ -203,7 +203,7 @@ let annotate_tail_calls_helper = fun e ->
   | Or' expr'_list -> Or' (annotate_list expr'_list is_in_tp)
   | LambdaSimple' (arg_names, body_expr') -> annotate_lambda_simple arg_names body_expr'
   | LambdaOpt' (req_arg_names, opt_arg_name, body_expr') -> annotate_lambda_opt req_arg_names opt_arg_name body_expr'
-  | Applic' (expr'_operator, exprs'_operands) -> annotate_applic expr'_operator exprs'_operands is_in_tp
+  | Applic' (operator_expr', operands_expr'_list) -> annotate_applic operator_expr' operands_expr'_list is_in_tp
 
   (* impossible case, were annotate right now,
      so if we got an ApplicTP', it's probably a bug *)
@@ -269,26 +269,24 @@ let annotate_boxes_helper = fun e ->
     | LambdaSimple' (arg_names, body_expr') -> LambdaSimple' (arg_names, (annotate_lambda depth annotation_args body_expr'))
     | LambdaOpt' (req_arg_names, opt_arg_name, body_expr') -> LambdaOpt' (req_arg_names, opt_arg_name, (annotate_lambda depth annotation_args body_expr'))
 
-    | Applic' (expr'_operator, exprs'_operands) ->
+    | Applic' (operator_expr', operands_expr'_list) ->
       annotate_applic
         (fun annotated_operator_expr' annotated_operands_expr' ->
           Applic' (annotated_operator_expr', annotated_operands_expr'))
         depth
         annotation_args
-        expr'_operator
-        exprs'_operands
+        operator_expr'
+        operands_expr'_list
 
-    | ApplicTP' (expr'_operator, exprs'_operands) ->
+    | ApplicTP' (operator_expr', operands_expr'_list) ->
       annotate_applic
         (fun annotated_operator_expr' annotated_operands_expr' ->
           ApplicTP' (annotated_operator_expr', annotated_operands_expr'))
         depth
         annotation_args
-        expr'_operator
-        exprs'_operands
+        operator_expr'
+        operands_expr'_list
 
-    (* impossible case, were annotate right now,
-      so if we got a box, it's probably a bug *)
     | Box' _ -> expr'
     | BoxGet' _ -> expr'
     | BoxSet' _ -> expr' in
@@ -310,7 +308,7 @@ let annotate_boxes_helper = fun e ->
         Seq' (set_boxes_expr'_list @ body_expr'_list) in
   factory annotated_body_expr' in
 
-  let find_var_access_var = fun depth var read_write ->
+  let get_access_var = fun depth var read_write ->
     match var with
     | VarParam (_, pos) -> [(depth, pos, None, read_write)]
     | VarBound (_, depth_offset, pos) ->
@@ -318,38 +316,43 @@ let annotate_boxes_helper = fun e ->
       [(dest_depth, pos, None, read_write)]
     | VarFree _ -> [] in
 
-  let rec find_var_access_unordered_list = fun depth expr'_list ->
-    let var_access_list_list = List.map (find_var_accesses_traversal depth) expr'_list in
-    List.flatten var_access_list_list
+  let rec find_var_accesses_set = fun depth var value_expr' ->
+    let var_var_access = get_access_var depth var false in
+    let value_expr'_var_accesses = find_var_accesses_traversal depth value_expr' in
+    var_var_access @ value_expr'_var_accesses
 
-  and filter_ordered_var_accesses = fun depth var_access_list_list ->
+  and find_var_accesses_unordered_list = fun depth expr'_list ->
+    let var_accesses_list_list = List.map (find_var_accesses_traversal depth) expr'_list in
+    List.flatten var_accesses_list_list
+
+  and filter_ordered_var_accesses = fun depth var_accesses_list_list ->
     (* TODO actually implemented this when done with the rest *)
-    List.flatten var_access_list_list
+    List.flatten var_accesses_list_list
 
   and find_var_accesses_ordered_list = fun depth expr'_list ->
     let var_accesses_list_list = List.map (find_var_accesses_traversal depth) expr'_list in
     filter_ordered_var_accesses depth var_accesses_list_list
 
-  and find_var_accesses_applic = fun depth operator operands_list ->
-    let operator_var_access = find_var_accesses_traversal depth operator in
-    let operand_var_access = find_var_access_unordered_list depth operands_list in
-    filter_ordered_var_accesses depth [operator_var_access; operand_var_access]
+  and find_var_accesses_applic = fun depth operator_expr' operands_expr'_list ->
+    let operator_var_accesses = find_var_accesses_traversal depth operator_expr' in
+    let operand_var_accesses = find_var_accesses_unordered_list depth operands_expr'_list in
+    filter_ordered_var_accesses depth [operator_var_accesses; operand_var_accesses]
 
   and find_vars_and_annotate_lambda = fun factory depth arg_names body_expr' ->
-    (* 1. get all the var access in the body
-       2. find the var access for this lambda
+    (* 1. get all the var accesses in the body
+       2. find the var accesses for this lambda
        3. filter out vars according to rules 1 and 2
-       4. annotated boxes (i.e. annotate all access as box get/set and add a set box at the beginning)
+       4. annotated boxes (i.e. annotate all accesses as box get/set and add a set box at the beginning)
        5. filter out all vars which are parameters of this lambda
-       6. map the rest of the access to replace the highest lambda in which the access appear to be this lambda
-       7. return the var access list *)
-    let body_var_access = find_var_accesses_traversal (depth + 1) body_expr' in
+       6. map the rest of the accesses to replace the highest lambda to be this lambda
+       7. return the var accesses list *)
+    let body_var_accesses = find_var_accesses_traversal (depth + 1) body_expr' in
 
-    let (var_access, parent_lambdas_var_accesses) = List.partition
+    let (var_accesses, parent_lambdas_var_accesses) = List.partition
       (fun (dest_depth, _, _, _) -> dest_depth = depth)
-      body_var_access in
+      body_var_accesses in
 
-    let var_access = List.filter
+    let var_accesses = List.filter
       (fun (_, _, highest_lambda_opt, read_write) ->
         List.exists
           (fun (_, _, other_highest_lambda_opt, other_read_write) ->
@@ -358,11 +361,11 @@ let annotate_boxes_helper = fun e ->
             | Some (LambdaSimple' _), Some (LambdaSimple' _) -> highest_lambda_opt != other_highest_lambda_opt
             | Some (LambdaOpt' _), Some (LambdaOpt' _) -> highest_lambda_opt != other_highest_lambda_opt
             | _ -> true)
-        var_access)
-      var_access in
+        var_accesses)
+      var_accesses in
 
     let annotated_lambda_expr' =
-      let args_pos_list = List.map (fun (_, pos, _, _) -> pos) var_access in
+      let args_pos_list = List.map (fun (_, pos, _, _) -> pos) var_accesses in
       let unique_args_pos_list = List.sort_uniq compare args_pos_list in
       let annotation_args = List.map
         (fun pos ->
@@ -404,14 +407,14 @@ let annotate_boxes_helper = fun e ->
   and find_var_accesses_traversal_root = fun depth expr' ->
     match expr' with
     | Const' _ -> (expr', [])
-    | Var' var -> (expr', find_var_access_var depth var true)
-    | If' (test, dit, dif) -> (expr', find_var_access_unordered_list depth [test; dit; dif])
+    | Var' var -> (expr', get_access_var depth var true)
+    | If' (test, dit, dif) -> (expr', find_var_accesses_unordered_list depth [test; dit; dif])
     | Seq' expr'_list -> (expr', find_var_accesses_ordered_list depth expr'_list)
-    | Set' (var, value_expr') -> (expr', find_var_access_var depth var false)
+    | Set' (var, value_expr') -> (expr', find_var_accesses_set depth var value_expr')
     | Def' (var, value_expr') -> (expr', find_var_accesses_traversal depth value_expr')
     | Or' expr'_list -> (expr', find_var_accesses_ordered_list depth expr'_list)
-    | (  Applic' (expr'_operator, exprs'_operands)
-       | ApplicTP' (expr'_operator, exprs'_operands)) -> (expr', find_var_accesses_applic depth expr'_operator exprs'_operands)
+    | (  Applic' (operator_expr', operands_expr'_list)
+       | ApplicTP' (operator_expr', operands_expr'_list)) -> (expr', find_var_accesses_applic depth operator_expr' operands_expr'_list)
 
     (* returns with possibly annotated body *)
     | LambdaSimple' (arg_names, body_expr') -> find_vars_and_annotate_lambda_simple depth arg_names body_expr'

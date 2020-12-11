@@ -154,13 +154,14 @@ let make_abstract_test_analysis_from_string = fun f_transformation f_out_transfo
         f_report_error string actual_t expected_t)
     string;;
 
-let make_test_analysis_from_string = fun f string expected ->
+let make_test_analysis_from_string = fun f function_name string expected ->
   make_abstract_test_analysis_from_string
     f
     expr'_to_string
     (fun s actual_s expected_s ->
       Printf.printf
-        "error in test:  \n{ %s }\n  expected: { %s }\n  actual: { %s }\n"
+        "error in %s test:  \n{ %s }\n  expected: { %s }\n  actual: { %s }\n"
+        function_name
         s
         expected_s
         actual_s)
@@ -168,9 +169,9 @@ let make_test_analysis_from_string = fun f string expected ->
     expected;;
 
 let test_annotate_lexical_addresses_case = fun string expected ->
-  make_test_analysis_from_string (fun expr' -> expr') string expected;;
+  make_test_analysis_from_string (fun expr' -> expr') "lexical addressing" string expected;;
 
-let test_annotate_tail_calls_abstract = fun f string expected ->
+let test_annotate_tail_calls_abstract = fun f function_name string expected ->
   make_test_analysis_from_string
     (fun expr' ->
       try let expr' = Semantics.annotate_tail_calls expr' in
@@ -180,10 +181,11 @@ let test_annotate_tail_calls_abstract = fun f string expected ->
           Printf.printf "Tail call annotation got error at { %s }\n" string;
           raise X_syntax_error
         end;)
+    function_name
     string
     expected;;
 let test_annotate_tail_calls_case = fun string expected ->
-  test_annotate_tail_calls_abstract (fun expr' -> expr') string expected;;
+  test_annotate_tail_calls_abstract (fun expr' -> expr') "tail calls annotation" string expected;;
 
 let test_annotate_boxes_case = fun string expected ->
   test_annotate_tail_calls_abstract
@@ -195,7 +197,9 @@ let test_annotate_boxes_case = fun string expected ->
           Printf.printf "Boxes annotation got error at { %s }\n" string;
           raise X_syntax_error
         end;)
-    string expected;;
+    "boxes annotation"
+    string
+    expected;;
 
 let test_annotate_lexical_addresses = fun () ->
   test_annotate_lexical_addresses_case
@@ -657,6 +661,48 @@ let test_annotate_boxes = fun () ->
           ]
         )
       ]
+    ));
+
+  test_annotate_boxes_case
+    "(lambda (n)
+      (lambda ()
+        (list
+          (lambda ()
+            (set! n (+ n 1))
+            n)
+          (lambda ()
+            (set! n 0)))))"
+    (LambdaSimple' (
+      ["n"],
+      LambdaSimple' (
+        [],
+        ApplicTP' (
+          Var' (VarFree "list"), [
+            LambdaSimple' (
+              [],
+              Seq' [
+                Set' (
+                  VarBound ("n", 0, 0),
+                  Applic' (
+                    Var' (VarFree "+"), [
+                      Var' (VarBound ("n", 0, 0));
+                      Const' (Sexpr (Number (Fraction (1, 1))))
+                    ]
+                  )
+                );
+                Var' (VarBound ("n", 0, 0))
+              ]
+            );
+            LambdaSimple' (
+              [],
+              Set' (
+                VarBound ("n", 0, 0),
+                Const' (Sexpr (Number (Fraction (0, 1))))
+              );
+            );
+          ]
+        )
+      )
     ));;
 
 let main = fun () ->
