@@ -703,6 +703,128 @@ let test_annotate_boxes = fun () ->
           ]
         )
       )
+    ));
+
+  test_annotate_boxes_case
+    "(lambda (y x) ((lambda () (set! y x))) y)"
+    (LambdaSimple' (
+      ["y"; "x"],
+      Seq' [
+        Set' (VarParam ("y", 0), Box' (VarParam ("y", 0)));
+        Applic' (
+          LambdaSimple' (
+            [],
+            BoxSet' (
+              VarBound ("y", 0, 0),
+              Var' (VarBound ("x", 0, 1))
+            )
+          ),
+          []
+        );
+        BoxGet' (VarParam ("y", 0))
+      ]
+    ));
+
+  test_annotate_boxes_case
+    "(lambda (n)
+      (set! n (+ n 1))
+      n)"
+    (LambdaSimple' (
+      ["n"],
+      Seq' [
+        Set' (
+          VarParam ("n", 0),
+          Applic' (Var' (VarFree "+"), [Var' (VarParam ("n", 0)); Const' (Sexpr (Number (Fraction (1, 1))))])
+        );
+        Var' (VarParam ("n", 0))
+      ]
+    ));
+
+  test_annotate_boxes_case
+    "(lambda (n)
+      (lambda (u)
+      (u (lambda ()
+          (set! n (+ n 1))
+          n)
+        (lambda ()
+          (set! n 0)))))"
+        (LambdaSimple' (
+      ["n"],
+      LambdaSimple' (
+        ["u"],
+        ApplicTP' (
+          Var' (VarParam ("u", 0)), [
+            LambdaSimple' (
+              [],
+              Seq' [
+                Set' (
+                  VarBound ("n", 1, 0),
+                  Applic' (
+                    Var' (VarFree "+"), [
+                      Var' (VarBound ("n", 1, 0));
+                      Const' (Sexpr (Number (Fraction (1, 1))))
+                    ]
+                  )
+                );
+                Var' (VarBound ("n", 1, 0))
+              ]
+            );
+            LambdaSimple' (
+              [],
+              Set' (
+                VarBound ("n", 1, 0),
+                Const' (Sexpr (Number (Fraction (0, 1))))
+              );
+            );
+          ]
+        )
+      )
+    ));
+
+  test_annotate_boxes_case
+    "(lambda (n)
+      (list
+        (begin
+          (set! n (* n n))
+          n)
+        (lambda () n)))"
+    (LambdaSimple' (
+      ["n"],
+      Seq' [
+        Set' (VarParam ("n", 0), Box' (VarParam ("n", 0)));
+        ApplicTP' (
+          Var' (VarFree "list"), [
+            Seq' [
+              BoxSet' (
+                VarParam ("n", 0),
+                Applic' (
+                  Var' (VarFree "*"), [
+                    BoxGet' (VarParam ("n", 0));
+                    BoxGet' (VarParam ("n", 0))
+                  ]
+                )
+              );
+              BoxGet' (VarParam ("n", 0))
+            ];
+            LambdaSimple' (
+              [],
+              BoxGet' (VarBound ("n", 0, 0))
+            );
+          ]
+        )
+      ]
+    ));
+
+  test_annotate_boxes_case
+    "(lambda (n)
+      (lambda () (set! n 0))
+      (lambda () (set! n 1)))"
+    (LambdaSimple' (
+      ["n"],
+      Seq' [
+        LambdaSimple' ([], Set' (VarBound ("n", 0, 0), Const' (Sexpr (Number (Fraction (0, 1))))));
+        LambdaSimple' ([], Set' (VarBound ("n", 0, 0), Const' (Sexpr (Number (Fraction (1, 1))))))
+      ]
     ));;
 
 let main = fun () ->

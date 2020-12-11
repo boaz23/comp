@@ -310,7 +310,7 @@ let annotate_boxes_helper = fun e ->
 
   let get_access_var = fun depth var read_write ->
     match var with
-    | VarParam (_, pos) -> [(depth, pos, None, read_write)]
+    | VarParam (_, pos) -> [(depth - 1, pos, None, read_write)]
     | VarBound (_, depth_offset, pos) ->
       let dest_depth = compute_bound_var_depth depth depth_offset in
       [(dest_depth, pos, None, read_write)]
