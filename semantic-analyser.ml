@@ -213,8 +213,85 @@ let annotate_tail_calls_helper = fun e ->
   annotate_traversal e false;;
 
 let annotate_boxes_helper = fun e ->
-  let rec annotate_boxes_traversal = fun annotation_args expr' ->
-    raise X_not_yet_implemented in
+  let annotate_box_var_pos = fun factory box_factory depth annotation_args var_pos var ->
+    if depth = 0 then
+      let annotation_arg_opt = List.find_opt
+          (fun (_, arg_pos) -> arg_pos = var_pos)
+          annotation_args in
+      match annotation_arg_opt with
+      | Some _ -> box_factory var
+      | None -> factory var
+    else factory var in
+  let annotate_box_var = fun factory box_factory depth annotation_args var ->
+    match var with
+    | VarParam (_, var_pos) -> annotate_box_var_pos factory box_factory depth annotation_args var_pos var
+    | VarBound (_, depth_offset, var_pos) ->
+      let dest_depth = compute_bound_var_depth depth depth_offset in
+      annotate_box_var_pos factory box_factory dest_depth annotation_args var_pos var
+    | VarFree _ -> factory var in
+
+  let rec annotate_boxes_list = fun depth annotation_args expr'_list ->
+    List.map (annotate_boxes_traversal depth annotation_args) expr'_list
+
+  and annotate_applic = fun factory depth annotation_args operator_expr' operands_expr'_list ->
+    let annotated_operator_expr' = annotate_boxes_traversal depth annotation_args operator_expr' in
+    let annotated_operands_expr' = annotate_boxes_list depth annotation_args operands_expr'_list in
+    factory annotated_operator_expr' annotated_operands_expr'
+
+  and annotate_lambda = fun depth annotation_args body_expr' ->
+    annotate_boxes_traversal (depth + 1) annotation_args body_expr'
+
+  and annotate_boxes_traversal = fun depth annotation_args expr' ->
+    match expr' with
+    | Const' _ -> expr'
+
+    | Var' var -> annotate_box_var
+      (fun var -> Var' var)
+      (fun var -> BoxGet' var)
+      depth annotation_args var
+
+    | If' (test, dit, dif) -> If' (
+        annotate_boxes_traversal depth annotation_args test,
+        annotate_boxes_traversal depth annotation_args dit,
+        annotate_boxes_traversal depth annotation_args dif
+      )
+
+    | Seq' expr'_list -> Seq' (annotate_boxes_list depth annotation_args expr'_list)
+
+    | Set' (var, value_expr') -> annotate_box_var
+      (fun var -> Set' (var, value_expr'))
+      (fun var -> BoxSet' (var, value_expr'))
+      depth annotation_args var
+
+    | Def' (var, value_expr') -> Def' (var, (annotate_boxes_traversal depth annotation_args value_expr'))
+    | Or' expr'_list -> Or' (annotate_boxes_list depth annotation_args expr'_list)
+    | LambdaSimple' (arg_names, body_expr') -> LambdaSimple' (arg_names, (annotate_lambda depth annotation_args body_expr'))
+    | LambdaOpt' (req_arg_names, opt_arg_name, body_expr') -> LambdaOpt' (req_arg_names, opt_arg_name, (annotate_lambda depth annotation_args body_expr'))
+
+    | Applic' (expr'_operator, exprs'_operands) ->
+      annotate_applic
+        (fun annotated_operator_expr' annotated_operands_expr' ->
+          Applic' (annotated_operator_expr', annotated_operands_expr'))
+        depth
+        annotation_args
+        expr'_operator
+        exprs'_operands
+
+    | ApplicTP' (expr'_operator, exprs'_operands) ->
+      annotate_applic
+        (fun annotated_operator_expr' annotated_operands_expr' ->
+          ApplicTP' (annotated_operator_expr', annotated_operands_expr'))
+        depth
+        annotation_args
+        expr'_operator
+        exprs'_operands
+
+    (* impossible case, were annotate right now,
+      so if we got a box, it's probably a bug *)
+    | Box' _ -> raise X_syntax_error
+    | BoxGet' _ -> raise X_syntax_error
+    | BoxSet' _ -> raise X_syntax_error in
+
   let annotate_boxes = fun factory annotation_args body_expr' ->
     let annotated_body_expr' =
       if annotation_args = [] then body_expr'
@@ -225,7 +302,7 @@ let annotate_boxes_helper = fun e ->
             Set' (var_param, Box' var_param))
           annotation_args in
         let body_expr'_list =
-          let annotated_body_expr' = annotate_boxes_traversal annotation_args body_expr' in
+          let annotated_body_expr' = annotate_boxes_traversal 0 annotation_args body_expr' in
           match annotated_body_expr' with
           | Seq' expr'_list -> expr'_list
           | _ -> [annotated_body_expr'] in
@@ -337,11 +414,11 @@ let annotate_boxes_helper = fun e ->
     | LambdaSimple' (arg_names, body_expr') -> find_vars_and_annotate_lambda_simple depth arg_names body_expr'
     | LambdaOpt' (req_arg_names, opt_arg_name, body_expr') -> find_vars_and_annotate_lambda_opt depth req_arg_names opt_arg_name body_expr'
 
-  (* impossible case, were annotate right now,
-     so if we got a box, it's probably a bug *)
-  | Box' _ -> raise X_not_yet_implemented
-  | BoxGet' _ -> raise X_not_yet_implemented
-  | BoxSet' _ -> raise X_not_yet_implemented in
+    (* impossible case, were annotate right now,
+      so if we got a box, it's probably a bug *)
+    | Box' _ -> raise X_syntax_error
+    | BoxGet' _ -> raise X_syntax_error
+    | BoxSet' _ -> raise X_syntax_error in
 
   let (annotated_expr', _) = find_var_accesses_traversal_root 0 e in
   annotated_expr'
