@@ -682,21 +682,21 @@ let test_annotate_boxes = fun () ->
               [],
               Seq' [
                 Set' (
-                  VarBound ("n", 0, 0),
+                  VarBound ("n", 1, 0),
                   Applic' (
                     Var' (VarFree "+"), [
-                      Var' (VarBound ("n", 0, 0));
+                      Var' (VarBound ("n", 1, 0));
                       Const' (Sexpr (Number (Fraction (1, 1))))
                     ]
                   )
                 );
-                Var' (VarBound ("n", 0, 0))
+                Var' (VarBound ("n", 1, 0))
               ]
             );
             LambdaSimple' (
               [],
               Set' (
-                VarBound ("n", 0, 0),
+                VarBound ("n", 1, 0),
                 Const' (Sexpr (Number (Fraction (0, 1))))
               );
             );

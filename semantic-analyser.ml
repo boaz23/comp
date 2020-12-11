@@ -319,7 +319,13 @@ let annotate_boxes_helper = fun e ->
   let rec find_var_accesses_set = fun depth var value_expr' ->
     let var_var_access = get_access_var depth var false in
     let value_expr'_var_accesses = find_var_accesses_traversal depth value_expr' in
-    var_var_access @ value_expr'_var_accesses
+    filter_ordered_var_accesses depth [value_expr'_var_accesses; var_var_access]
+
+  and find_var_accesses_if = fun depth test dit dif ->
+    let test_var_accesses = find_var_accesses_traversal depth test in
+    let dit_var_accesses = find_var_accesses_traversal depth dit in
+    let dif_var_accesses = find_var_accesses_traversal depth dif in
+    filter_ordered_var_accesses depth [test_var_accesses; dit_var_accesses @ dif_var_accesses]
 
   and find_var_accesses_unordered_list = fun depth expr'_list ->
     let var_accesses_list_list = List.map (find_var_accesses_traversal depth) expr'_list in
@@ -358,8 +364,13 @@ let annotate_boxes_helper = fun e ->
           (fun (_, _, other_highest_lambda_opt, other_read_write) ->
             read_write <> other_read_write &&
             match highest_lambda_opt, other_highest_lambda_opt with
-            | Some (LambdaSimple' _), Some (LambdaSimple' _) -> highest_lambda_opt != other_highest_lambda_opt
-            | Some (LambdaOpt' _), Some (LambdaOpt' _) -> highest_lambda_opt != other_highest_lambda_opt
+            | None, None -> false
+            | Some highest_lambda, Some other_highest_lambda -> (
+              match highest_lambda, other_highest_lambda with
+              | LambdaSimple' _, LambdaSimple' _ -> highest_lambda != other_highest_lambda
+              | LambdaOpt' _, LambdaOpt' _ -> highest_lambda != other_highest_lambda
+              | _ -> true
+            )
             | _ -> true)
         var_accesses)
       var_accesses in
@@ -408,7 +419,7 @@ let annotate_boxes_helper = fun e ->
     match expr' with
     | Const' _ -> (expr', [])
     | Var' var -> (expr', get_access_var depth var true)
-    | If' (test, dit, dif) -> (expr', find_var_accesses_unordered_list depth [test; dit; dif])
+    | If' (test, dit, dif) -> (expr', find_var_accesses_if depth test dit dif)
     | Seq' expr'_list -> (expr', find_var_accesses_ordered_list depth expr'_list)
     | Set' (var, value_expr') -> (expr', find_var_accesses_set depth var value_expr')
     | Def' (var, value_expr') -> (expr', find_var_accesses_traversal depth value_expr')
