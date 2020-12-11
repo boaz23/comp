@@ -213,10 +213,24 @@ let annotate_tail_calls_helper = fun e ->
   annotate_traversal e false;;
 
 let annotate_boxes_helper = fun e ->
-  let rec annotated_boxes_traversal = fun pos_list expr' ->
+  let rec annotate_boxes_traversal = fun annotation_args expr' ->
     raise X_not_yet_implemented in
-  let annotated_boxes = fun factory pos_list body_expr' ->
-    raise X_not_yet_implemented in
+  let annotate_boxes = fun factory annotation_args body_expr' ->
+    let annotated_body_expr' =
+      if annotation_args = [] then body_expr'
+      else
+        let set_boxes_expr'_list = List.map
+          (fun (arg_name, pos) ->
+            let var_param = VarParam (arg_name, pos) in
+            Set' (var_param, Box' var_param))
+          annotation_args in
+        let body_expr'_list =
+          let annotated_body_expr' = annotate_boxes_traversal annotation_args body_expr' in
+          match annotated_body_expr' with
+          | Seq' expr'_list -> expr'_list
+          | _ -> [annotated_body_expr'] in
+        Seq' (set_boxes_expr'_list @ body_expr'_list) in
+  factory annotated_body_expr' in
 
   let find_var_access_var = fun depth var read_write ->
     match var with
@@ -263,19 +277,23 @@ let annotate_boxes_helper = fun e ->
           (fun (_, _, other_highest_lambda_opt, other_read_write) ->
             read_write <> other_read_write &&
             match highest_lambda_opt, other_highest_lambda_opt with
-            | Some (LambdaSimple _), Some (LambdaSimple _) -> highest_lambda_opt != other_highest_lambda_opt
-            | Some (LambdaOpt _), Some (LambdaOpt _) -> highest_lambda_opt != other_highest_lambda_opt
+            | Some (LambdaSimple' _), Some (LambdaSimple' _) -> highest_lambda_opt != other_highest_lambda_opt
+            | Some (LambdaOpt' _), Some (LambdaOpt' _) -> highest_lambda_opt != other_highest_lambda_opt
             | _ -> true)
         var_access)
       var_access in
 
     let annotated_lambda_expr' =
-      let pos_list = List.map (fun (_, pos, _, _) -> pos) var_access in
-      annotated_boxes factory pos_list body_expr' in
+      let annotation_args = List.map
+        (fun (_, pos, _, _) ->
+          let arg_name = List.nth arg_names pos in
+          (arg_name, pos))
+        var_access in
+      annotate_boxes factory annotation_args body_expr' in
 
     let parent_lambdas_var_accesses = List.map
       (fun (dest_depth, pos, _, read_write) ->
-        (dest_depth, pos, annotated_lambda_expr', read_write))
+        (dest_depth, pos, Some annotated_lambda_expr', read_write))
       parent_lambdas_var_accesses in
 
     (annotated_lambda_expr', parent_lambdas_var_accesses)
