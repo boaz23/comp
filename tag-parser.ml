@@ -382,35 +382,21 @@ let rec expand_quasiquote_macro = fun sexpr ->
 *)
 let expand_macro_shallow = fun sexpr ->
   match sexpr with
-  | Pair(Symbol("and"), exps) ->
-    ((expand_and_macro exps), true)
-
+  | Pair(Symbol("and"), exps) -> expand_and_macro exps
   | Pair(Symbol("define"), Pair(Pair(Symbol(var_name), args), body)) ->
-    ((expand_mit_define_macro var_name args body), true)
+    expand_mit_define_macro var_name args body
 
-  | Pair(Symbol("let"), Pair(bindings, body)) ->
-    ((expand_let_macro bindings body), true)
-
-  | Pair(Symbol("let*"), Pair(bindings, body)) ->
-    ((expand_let_star_macro bindings body), true)
-
-  | Pair(Symbol("letrec"), Pair(bindings, body)) ->
-    ((expand_letrec_macro bindings body), true)
-
-  | Pair(Symbol("cond"), ribs) ->
-    ((expand_cond_macro ribs), true)
-
-  | Pair(Symbol("quasiquote"), Pair(sexpr, Nil)) ->
-    ((expand_quasiquote_macro sexpr), true)
-
-  | Pair(Symbol("pset!"), bindings) ->
-    ((expend_pset_macro bindings), true)
-
-  | _ -> (sexpr, false)
+  | Pair(Symbol("let"), Pair(bindings, body)) -> expand_let_macro bindings body
+  | Pair(Symbol("let*"), Pair(bindings, body)) -> expand_let_star_macro bindings body
+  | Pair(Symbol("letrec"), Pair(bindings, body)) -> expand_letrec_macro bindings body
+  | Pair(Symbol("cond"), ribs) -> expand_cond_macro ribs
+  | Pair(Symbol("quasiquote"), Pair(sexpr, Nil)) -> expand_quasiquote_macro sexpr
+  | Pair(Symbol("pset!"), bindings) -> expend_pset_macro bindings
+  | _ -> sexpr
 
 let rec expand_macro = fun sexpr ->
-  let (sexpr, has_been_expanded) = expand_macro_shallow sexpr in
-    if has_been_expanded then (expand_macro sexpr)
+  let expanded_sexpr = expand_macro_shallow sexpr in
+    if sexpr != expanded_sexpr then expand_macro expanded_sexpr
     else sexpr
 
 (*

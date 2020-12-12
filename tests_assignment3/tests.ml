@@ -828,6 +828,9 @@ let test_annotate_boxes = fun () ->
     ));;
 
 let main = fun () ->
+  Printf.printf "\nrunning tests...\n";
   test_annotate_lexical_addresses ();
   test_annotate_tail_calls();
   test_annotate_boxes();;
+
+main();;

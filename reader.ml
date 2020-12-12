@@ -280,27 +280,31 @@ let nt_string =
 TODO: fix backtracking
 *)
 (* ----- list & dotted list ----- *)
-let rec nt_empty_list s =
-  let empty_list_parser = caten (caten nt_char_open_parentheses nt_invisible)
-                                nt_char_close_parentheses in
-    pack empty_list_parser (fun _ -> Nil) s
-
-and nt_pair s =
-  let dotted_sexpr = pack (caten nt_dot nt_sexpr)
-                          (fun (_, sexpr) -> sexpr) in
-  let optional_dotted_sexpr = maybe dotted_sexpr in
-  let inner_sexprs = caten (plus nt_sexpr) optional_dotted_sexpr in
-  let parser = make_paired nt_char_open_parentheses nt_char_close_parentheses inner_sexprs in
-  let pack_list list init = List.fold_right (fun e acc -> Pair(e, acc))
-                                            list
-                                            init in
-  let packer = fun (sexprs, opt_sexpr) ->
-                let last_sexpr_in_pair =
-                  (match opt_sexpr with
-                    | None -> Nil
-                    | Some(sexpr) -> sexpr) in
-                  pack_list sexprs last_sexpr_in_pair in
-    pack parser packer s
+let rec nt_pairs s =
+  let nt_opening_parenthesis = caten nt_char_open_parentheses nt_invisible in
+  let nt_sexprs_opt =
+    let nt_sexprs =
+      let nt_unpacked_sexprs =
+        let nt_inner_sexprs = plus nt_sexpr in
+        let nt_last_sexpr =
+          let nt_dotted_sexpr_opt =
+            let nt_dotted_sexpr = pack (caten nt_dot nt_sexpr)
+                                      (fun (_, sexpr) -> sexpr) in
+            maybe nt_dotted_sexpr in
+          let pack_sexpr_opt = function
+            | Some sexpr -> sexpr
+            | None -> Nil in
+          pack nt_dotted_sexpr_opt pack_sexpr_opt in
+      caten nt_inner_sexprs nt_last_sexpr in
+      let pack_sexprs (sexprs_list, last_sexpr) =
+        List.fold_right (fun e acc -> Pair(e, acc)) sexprs_list last_sexpr in
+      pack nt_unpacked_sexprs pack_sexprs in
+    let pack_inner_sexprs_opt = function
+      | Some inner_sexprs -> inner_sexprs
+      | None -> Nil in
+    pack (maybe nt_sexprs) pack_inner_sexprs_opt in
+  let parser = make_paired nt_opening_parenthesis nt_char_close_parentheses nt_sexprs_opt in
+  parser s
 
 (* ----- quotes expressions ----- *)
 (* No need to explicitly enclose the quote in invisible stuff
@@ -327,17 +331,15 @@ and nt_invisible s =
 
 (* ----- sexpr ----- *)
 and parser_nts_list = [nt_boolean; nt_char; nt_number; nt_string;
-                       nt_symbol; nt_empty_list; nt_pair; nt_quoted;
+                       nt_symbol; nt_pairs; nt_quoted;
                        nt_quasi_quoted; nt_unquoted; nt_unquote_and_spliced]
 and nt_sexpr s = make_paired_sym nt_invisible (disj_list parser_nts_list) s;;
 
+let nt_sexprs_input = make_paired nt_invisible nt_end_of_input (star nt_sexpr);;
+
 let read_sexprs string =
-  let char_list = string_to_list string in
-  let parser = caten nt_invisible (disj (plus nt_sexpr) nt_epsilon) in
-  let parser = pack parser (fun (_, sexprs) -> sexprs) in
-  let parser = caten parser nt_end_of_input in
-  let parser = pack parser (fun (sexprs, _) -> sexprs) in
-  let (sexprs, rest_of_input) = parser char_list in
+  let s = string_to_list string in
+  let (sexprs, _) = nt_sexprs_input s in
     sexprs;;
 
 end;; (* struct Reader *)
