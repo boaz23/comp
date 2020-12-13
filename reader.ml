@@ -63,6 +63,21 @@ let list_to_lowercase_string s =
 
 let make_ignored nt = pack nt (fun _ -> ());;
 
+let make_special_token_list base_list nt_token =
+  let nt_special_list = List.map (fun (special_token, token_value) ->
+                                    pack (nt_token special_token)
+                                         (fun _ -> token_value))
+                                 base_list in
+  disj_list nt_special_list;;
+
+(* ----- Option ----- *)
+let option_value_or_default default = function
+  | Some value -> value
+  | None -> default;;
+let pack_option nt_opt default =
+  pack nt_opt (option_value_or_default default);;
+
+(* ----- Delimiters ----- *)
 let make_paired nt_left nt_right nt =
     let nt = caten nt_left nt in
     let nt = pack nt (function(_, e) -> e) in
@@ -73,13 +88,7 @@ let make_paired_sym nt_sides nt = make_paired nt_sides nt_sides nt;;
 let make_delimited_pair nt_left nt_right nt_delim =
   pack (caten (caten nt_left nt_delim) nt_right)
        (fun ((left, _), right) -> (left, right));;
-
-let make_special_token_list base_list nt_token =
-  let nt_special_list = List.map (fun (special_token, token_value) ->
-                                    pack (nt_token special_token)
-                                         (fun _ -> token_value))
-                                 base_list in
-  disj_list nt_special_list;;
+let make_delimited_on_left nt_left nt = pack (caten nt_left nt) (fun (_, value) -> value);;
 
 (*
 ------------ whitespaces ------------
@@ -89,11 +98,9 @@ let make_spaced nt = make_paired_sym nt_whitespaces nt;;
 
 let nt_line_comment =
   let nt_dot_wildcard = diff nt_any nt_new_line_feed in
-  let nt_until_end_of_line = star nt_dot_wildcard in
-  let comment_start = caten (char ';') nt_until_end_of_line in
+  let comment_prefix = char ';' in
   let comment_end = disj (make_ignored nt_end_of_input) (make_ignored nt_new_line_feed) in
-    pack (caten comment_start comment_end)
-         (fun ((_, comment), _) -> comment);;
+  make_paired comment_prefix comment_end (star nt_dot_wildcard)
 
 (*
 ------------ symbols ------------
@@ -125,15 +132,15 @@ let nt_boolean_greedy_take =
   let parser_false = pack nt_ci_f (fun _ -> false) in
   let parser_true  = pack nt_ci_t (fun _ -> true)  in
   let parser_inner = disj parser_false parser_true in
-
-  let parser = caten nt_char_hashtag parser_inner in
-    pack parser (fun (_, b) -> Bool(b));;
+  let parser = make_delimited_on_left nt_char_hashtag parser_inner in
+    pack parser (fun b -> Bool(b));;
 
 let nt_boolean = not_followed_by nt_boolean_greedy_take nt_symbol_char;;
 
 (*
 ------------ characters ------------
 *)
+let nt_visible_simple_char = diff nt_any nt_whitespace;;
 let nt_named_char =
   let named_chars_list = [
     ("nul", '\000');
@@ -145,13 +152,11 @@ let nt_named_char =
   ] in
   make_special_token_list named_chars_list word_ci;;
 
-let nt_sexpr_char_prefix = caten nt_char_hashtag nt_char_backslash;;
-let nt_visible_simple_char = diff nt_any nt_whitespace;;
-
 let nt_char_char = disj nt_named_char nt_visible_simple_char;;
 let nt_char_greedy_take =
-  let parser = caten nt_sexpr_char_prefix nt_char_char in
-    pack parser (fun (_, ch) -> Char(ch));;
+  let nt_sexpr_char_prefix = caten nt_char_hashtag nt_char_backslash in
+  let parser = make_delimited_on_left nt_sexpr_char_prefix nt_char_char in
+    pack parser (fun ch -> Char(ch));;
 
 let nt_char = not_followed_by nt_char_greedy_take nt_symbol_char;;
 
@@ -173,13 +178,7 @@ let nt_optional_sign =
   let nt_num_sign = disj parser_sign_plus parser_sign_minus in
     maybe nt_num_sign;;
 
-let nt_num_sign =
-  pack
-    nt_optional_sign
-    (fun s ->
-      match s with
-      | None -> 1
-      | Some s -> s);;
+let nt_num_sign = pack_option nt_optional_sign 1;;
 
 let nt_natural =
   let f = fun a b -> a * 10 + b in
@@ -265,8 +264,7 @@ let nt_string_meta_char =
     ('r', '\r')
   ] in
   let parser_string_meta_char_inner = make_special_token_list string_meta_char_list char_ci in
-  let parser = caten nt_char_backslash parser_string_meta_char_inner in
-    pack parser (fun (_, char_value) -> char_value);;
+  make_delimited_on_left nt_char_backslash parser_string_meta_char_inner
 
 
 let nt_string_char = disj nt_string_literal_char nt_string_meta_char;;
@@ -277,7 +275,6 @@ let nt_string =
 
 (*
 ------------ recursive sepxr production rules ------------
-TODO: fix backtracking
 *)
 (* ----- list & dotted list ----- *)
 let rec nt_pairs s =
@@ -287,30 +284,21 @@ let rec nt_pairs s =
       let nt_unpacked_sexprs =
         let nt_inner_sexprs = plus nt_sexpr in
         let nt_last_sexpr =
-          let nt_dotted_sexpr_opt =
-            let nt_dotted_sexpr = pack (caten nt_dot nt_sexpr)
-                                      (fun (_, sexpr) -> sexpr) in
-            maybe nt_dotted_sexpr in
-          let pack_sexpr_opt = function
-            | Some sexpr -> sexpr
-            | None -> Nil in
-          pack nt_dotted_sexpr_opt pack_sexpr_opt in
-      caten nt_inner_sexprs nt_last_sexpr in
+          let nt_dotted_sexpr = make_delimited_on_left nt_dot nt_sexpr in
+          pack_option (maybe nt_dotted_sexpr) Nil in
+        caten nt_inner_sexprs nt_last_sexpr in
       let pack_sexprs (sexprs_list, last_sexpr) =
         List.fold_right (fun e acc -> Pair(e, acc)) sexprs_list last_sexpr in
       pack nt_unpacked_sexprs pack_sexprs in
-    let pack_inner_sexprs_opt = function
-      | Some inner_sexprs -> inner_sexprs
-      | None -> Nil in
-    pack (maybe nt_sexprs) pack_inner_sexprs_opt in
+    pack_option (maybe nt_sexprs) Nil in
   let parser = make_paired nt_opening_parenthesis nt_char_close_parentheses nt_sexprs_opt in
   parser s
 
 (* ----- quotes expressions ----- *)
 (* No need to explicitly enclose the quote in invisible stuff
    because the sexpr handles it already *)
-and make_quoted nt_quote name s = pack (caten nt_quote nt_sexpr)
-                                       (fun (_, sexpr) -> Pair(Symbol(name), Pair(sexpr, Nil)))
+and make_quoted nt_quote name s = pack (make_delimited_on_left nt_quote nt_sexpr)
+                                       (fun sexpr -> Pair(Symbol(name), Pair(sexpr, Nil)))
                                        s
 and nt_quoted s = make_quoted (word "\'") "quote" s
 and nt_quasi_quoted s = make_quoted (word "`") "quasiquote" s

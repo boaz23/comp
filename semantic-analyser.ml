@@ -345,7 +345,7 @@ let annotate_boxes_helper = fun e ->
   and find_var_accesses_applic = fun depth operator_expr' operands_expr'_list ->
     let operator_var_accesses = find_var_accesses_traversal depth operator_expr' in
     let operand_var_accesses = find_var_accesses_unordered_list depth operands_expr'_list in
-    filter_ordered_var_accesses depth [operator_var_accesses; operand_var_accesses]
+    operator_var_accesses @ operand_var_accesses
 
   and find_vars_and_annotate_lambda = fun factory depth arg_names body_expr' ->
     (* 1. get all the var accesses in the body
