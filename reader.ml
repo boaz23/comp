@@ -160,33 +160,23 @@ let nt_char = not_followed_by nt_char_greedy_take nt_symbol_char;;
 
 TODO: fix backtracking
 *)
-let nt_num_digit =
-  let ascii_0 = int_of_char '0' in
-  pack nt_char_digit (fun ch -> (int_of_char ch) - ascii_0);;
-let nt_num_digit_list = plus nt_num_digit;;
+let nt_char_digit_list = plus nt_char_digit;;
 
-let nt_optional_sign =
-  let nt_char_sign_plus = char '+' in
-  let nt_char_sign_minus = char '-' in
-  let parser_sign_plus = pack nt_char_sign_plus (fun _ -> 1) in
-  let parser_sign_minus = pack nt_char_sign_minus (fun _ -> -1) in
-  let nt_num_sign = disj parser_sign_plus parser_sign_minus in
-  maybe nt_num_sign;;
+let nt_char_sign_raw = disj (char '+') (char '-');;
+let nt_optional_char_sign = maybe nt_char_sign_raw;;
+let nt_char_sign = pack_option nt_optional_char_sign '+';;
 
-let nt_num_sign = pack_option nt_optional_sign 1;;
+let make_raw_int nt_int_string = pack nt_int_string (fun s -> int_of_string s);;
 
-let nt_natural =
-  let f = fun a b -> a * 10 + b in
-  let packer = fun s -> List.fold_left f 0 s in
-  pack nt_num_digit_list packer;;
+let nt_natural_string = pack nt_char_digit_list (fun s -> list_to_string s);;
+let nt_natural = make_raw_int nt_natural_string;;
 
-let nt_int_with_sign_pair =
-  let packer = fun (s, n) -> (n, s) in
-  pack (caten nt_num_sign nt_natural) packer;;
-let nt_int_raw = pack nt_int_with_sign_pair (fun (n, s) -> n * s);;
+let nt_signed_integer_string =
+  let packer = fun (s, n) -> list_to_string (s :: n) in
+  pack (caten nt_char_sign nt_char_digit_list) packer;;
+let nt_int_raw = make_raw_int nt_signed_integer_string;;
 
 let nt_integer = pack nt_int_raw (fun n -> Fraction(n, 1));;
-
 let nt_fraction =
   let nt_char_op_div = char '/' in
   let parser = make_delimited_pair nt_int_raw nt_natural nt_char_op_div in
@@ -199,41 +189,23 @@ let nt_fraction =
       Fraction(nom / gcd, dom / gcd) in
   pack parser packer;;
 
-let make_float nt_float_raw = pack nt_float_raw (fun f -> Float(f));;
-
-let nt_float_frac =
-  let f = fun a b -> (float_of_int a +. b) /. 10.0 in
-  let packer = fun s -> List.fold_right f s 0.0 in
-  pack nt_num_digit_list packer;;
-
-let nt_float_point_raw =
+let make_float_from_string nt_float_raw_string = pack nt_float_raw_string (fun f_s -> Float (float_of_string f_s));;
+let nt_float_point_string =
   let nt_char_frac_delim = char '.' in
-  let parser = make_delimited_pair nt_int_with_sign_pair nt_float_frac nt_char_frac_delim in
-  let packer =
-    fun ((n, s), frac) ->
-      let f = (float_of_int n) in
-      let f = f +. frac in
-      if s = 1 then f
-      else -.f in
+  let mantissa_whole = nt_signed_integer_string in
+  let mantisaa_frac = nt_natural_string in
+  let parser = make_delimited_pair mantissa_whole mantisaa_frac nt_char_frac_delim in
+  let packer = (fun (m_int, m_frac) -> Printf.sprintf "%s.%s" m_int m_frac) in
   pack parser packer;;
 
-let nt_float_point = make_float nt_float_point_raw;;
-
-let nt_float_scientific_raw =
+let nt_float_point = make_float_from_string nt_float_point_string;;
+let nt_float_scientific_string =
   let nt_char_ci_exp = char_ci 'e' in
-  let mantisaa_part = disj nt_float_point nt_integer in
-  let parser = make_delimited_pair mantisaa_part nt_int_raw nt_char_ci_exp in
-  let pack_float_scientific =
-    fun (base, exp) ->
-      let e = float_of_int exp in
-      let b = (
-        match base with
-        | Fraction(n, m) -> (float_of_int n) /. (float_of_int m)
-        | Float(f) -> f
-      ) in
-      b *. (10.0 ** e) in
+  let nt_base = disj nt_float_point_string nt_signed_integer_string in
+  let parser = make_delimited_pair nt_base nt_signed_integer_string nt_char_ci_exp in
+  let pack_float_scientific = fun (base, exp) -> Printf.sprintf "%se%s" base exp in
   pack parser pack_float_scientific;;
-let nt_float_scientific = make_float nt_float_scientific_raw;;
+let nt_float_scientific = make_float_from_string nt_float_scientific_string;;
 
 let nt_number_greedy_take =
   let parsers_list = [
