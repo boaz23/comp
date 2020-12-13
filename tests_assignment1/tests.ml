@@ -6,7 +6,7 @@ let read_sexpr = fun f string ->
     f sexprs
   )
   with
-  | PC.X_no_match -> Printf.printf "Reader got error at { %s }\n" string
+  | PC.X_no_match -> Printf.printf "Reader got error at {%s}\n" string
   | X_not_yet_implemented -> Printf.printf "Function is not yet implemented\n";;
 
 let test_reader string expected =
@@ -19,11 +19,11 @@ let test_reader string expected =
           expected
           read_sexprs then false
         else true in
-      if not valid then Printf.printf "reader failed on { %s }\n" string)
+      if not valid then Printf.printf "reader failed on {%s}\n" string)
     string;;
 let test_read_invalid_input string =
   try let _ = Reader.read_sexprs string in
-    Printf.printf "reader failed on { %s }\n" string
+    Printf.printf "reader return a result while expected a no match exception on {%s}\n" string
   with PC.X_no_match -> ();;
 
 

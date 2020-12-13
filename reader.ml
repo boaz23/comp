@@ -88,7 +88,7 @@ let make_paired_sym nt_sides nt = make_paired nt_sides nt_sides nt;;
 let make_delimited_pair nt_left nt_right nt_delim =
   pack (caten (caten nt_left nt_delim) nt_right)
        (fun ((left, _), right) -> (left, right));;
-let make_delimited_on_left nt_left nt = pack (caten nt_left nt) (fun (_, value) -> value);;
+let make_delimited_on_left nt_delimiter nt = pack (caten nt_delimiter nt) (fun (_, value) -> value);;
 
 (*
 ------------ whitespaces ------------
@@ -321,9 +321,15 @@ and nt_invisible s =
   star invisible_parser s
 
 (* ----- sexpr ----- *)
-and parser_nts_list = [nt_boolean; nt_char; nt_number; nt_string;
-                       nt_symbol; nt_pairs; nt_quotes]
-and nt_sexpr s = make_paired_sym nt_invisible (disj_list parser_nts_list) s;;
+and nt_sexpr s =
+  let nt_sexpr_core =
+    let sexpr_parsers_list = [
+      nt_boolean; nt_char; nt_number; nt_string;
+      nt_symbol; nt_pairs; nt_quotes
+    ] in
+    disj_list sexpr_parsers_list in
+  let parser = make_paired_sym nt_invisible nt_sexpr_core in
+  parser s;;
 
 let nt_sexprs_input = make_paired nt_invisible nt_end_of_input (star nt_sexpr);;
 
