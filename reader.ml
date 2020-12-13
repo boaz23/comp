@@ -110,7 +110,7 @@ let nt_symbol_char_no_dot =
   let nt_punctuation_list = List.map char punctuation_char_list in
   let nt_chars_alpha_numeric = [nt_char_digit; nt_lowercase; nt_uppercase] in
   let nt_symbol_char_no_dot_list = nt_chars_alpha_numeric @ nt_punctuation_list in
-    disj_list nt_symbol_char_no_dot_list;;
+  disj_list nt_symbol_char_no_dot_list;;
 
 let nt_symbol_char = disj nt_symbol_char_no_dot nt_dot;;
 
@@ -120,20 +120,15 @@ let nt_symbol =
 
   let parser = disj nt_noDot_with_starOfSymbolChar nt_dot_with_plusOfSymbolChar in
   let packer = fun (e, es) -> Symbol(list_to_lowercase_string (e :: es)) in
-    pack parser packer;;
+  pack parser packer;;
 
 (*
 ------------ boolean ------------
 *)
-let nt_ci_f = char_ci 'f';;
-let nt_ci_t = char_ci 't';;
-
 let nt_boolean_greedy_take =
-  let parser_false = pack nt_ci_f (fun _ -> false) in
-  let parser_true  = pack nt_ci_t (fun _ -> true)  in
-  let parser_inner = disj parser_false parser_true in
-  let parser = make_delimited_on_left nt_char_hashtag parser_inner in
-    pack parser (fun b -> Bool(b));;
+  let nt_boolean_values = make_special_token_list [('f', false); ('t', true)] char_ci in
+  let parser = make_delimited_on_left nt_char_hashtag nt_boolean_values in
+  pack parser (fun b -> Bool(b));;
 
 let nt_boolean = not_followed_by nt_boolean_greedy_take nt_symbol_char;;
 
@@ -156,7 +151,7 @@ let nt_char_char = disj nt_named_char nt_visible_simple_char;;
 let nt_char_greedy_take =
   let nt_sexpr_char_prefix = caten nt_char_hashtag nt_char_backslash in
   let parser = make_delimited_on_left nt_sexpr_char_prefix nt_char_char in
-    pack parser (fun ch -> Char(ch));;
+  pack parser (fun ch -> Char(ch));;
 
 let nt_char = not_followed_by nt_char_greedy_take nt_symbol_char;;
 
@@ -167,7 +162,7 @@ TODO: fix backtracking
 *)
 let nt_num_digit =
   let ascii_0 = int_of_char '0' in
-    pack nt_char_digit (fun ch -> (int_of_char ch) - ascii_0);;
+  pack nt_char_digit (fun ch -> (int_of_char ch) - ascii_0);;
 let nt_num_digit_list = plus nt_num_digit;;
 
 let nt_optional_sign =
@@ -176,14 +171,14 @@ let nt_optional_sign =
   let parser_sign_plus = pack nt_char_sign_plus (fun _ -> 1) in
   let parser_sign_minus = pack nt_char_sign_minus (fun _ -> -1) in
   let nt_num_sign = disj parser_sign_plus parser_sign_minus in
-    maybe nt_num_sign;;
+  maybe nt_num_sign;;
 
 let nt_num_sign = pack_option nt_optional_sign 1;;
 
 let nt_natural =
   let f = fun a b -> a * 10 + b in
   let packer = fun s -> List.fold_left f 0 s in
-    pack nt_num_digit_list packer;;
+  pack nt_num_digit_list packer;;
 
 let nt_int_with_sign_pair =
   let packer = fun (s, n) -> (n, s) in
@@ -201,15 +196,15 @@ let nt_fraction =
       else gcd m (n mod m) in
     fun (nom, dom) ->
       let gcd = gcd (abs nom) dom in
-        Fraction(nom / gcd, dom / gcd) in
-    pack parser packer;;
+      Fraction(nom / gcd, dom / gcd) in
+  pack parser packer;;
 
 let make_float nt_float_raw = pack nt_float_raw (fun f -> Float(f));;
 
 let nt_float_frac =
   let f = fun a b -> (float_of_int a +. b) /. 10.0 in
   let packer = fun s -> List.fold_right f s 0.0 in
-    pack nt_num_digit_list packer;;
+  pack nt_num_digit_list packer;;
 
 let nt_float_point_raw =
   let nt_char_frac_delim = char '.' in
@@ -220,7 +215,7 @@ let nt_float_point_raw =
       let f = f +. frac in
       if s = 1 then f
       else -.f in
-    pack parser packer;;
+  pack parser packer;;
 
 let nt_float_point = make_float nt_float_point_raw;;
 
@@ -233,10 +228,11 @@ let nt_float_scientific_raw =
       let e = float_of_int exp in
       let b = (
         match base with
-          | Fraction(n, m) -> (float_of_int n) /. (float_of_int m)
-          | Float(f) -> f) in
-        b *. (10.0 ** e) in
-    pack parser pack_float_scientific;;
+        | Fraction(n, m) -> (float_of_int n) /. (float_of_int m)
+        | Float(f) -> f
+      ) in
+      b *. (10.0 ** e) in
+  pack parser pack_float_scientific;;
 let nt_float_scientific = make_float nt_float_scientific_raw;;
 
 let nt_number_greedy_take =
@@ -255,15 +251,16 @@ let nt_number = not_followed_by nt_number_greedy_take (diff nt_symbol_char nt_ch
 *)
 let nt_string_literal_char = diff nt_any (disj (char '\\') (char '"'));;
 let nt_string_meta_char =
-  let string_meta_char_list = [
-    ('\\', '\\');
-    ('"', '"');
-    ('t', '\t');
-    ('f', '\012');
-    ('n', '\n');
-    ('r', '\r')
-  ] in
-  let parser_string_meta_char_inner = make_special_token_list string_meta_char_list char_ci in
+  let parser_string_meta_char_inner =
+    let string_meta_char_list = [
+      ('\\', '\\');
+      ('"', '"');
+      ('t', '\t');
+      ('f', '\012');
+      ('n', '\n');
+      ('r', '\r')
+    ] in
+    make_special_token_list string_meta_char_list char_ci in
   make_delimited_on_left nt_char_backslash parser_string_meta_char_inner
 
 
@@ -271,7 +268,7 @@ let nt_string_char = disj nt_string_literal_char nt_string_meta_char;;
 let nt_string =
   let parser = make_paired_sym nt_char_double_quote (star nt_string_char) in
   let packer = fun s -> String(list_to_string s) in
-    pack parser packer;;
+  pack parser packer;;
 
 (*
 ------------ recursive sepxr production rules ------------
@@ -297,13 +294,19 @@ let rec nt_pairs s =
 (* ----- quotes expressions ----- *)
 (* No need to explicitly enclose the quote in invisible stuff
    because the sexpr handles it already *)
-and make_quoted nt_quote name s = pack (make_delimited_on_left nt_quote nt_sexpr)
-                                       (fun sexpr -> Pair(Symbol(name), Pair(sexpr, Nil)))
-                                       s
-and nt_quoted s = make_quoted (word "\'") "quote" s
-and nt_quasi_quoted s = make_quoted (word "`") "quasiquote" s
-and nt_unquoted s = make_quoted (not_followed_by (word ",") (char '@')) "unquote" s
-and nt_unquote_and_spliced s = make_quoted (word ",@") "unquote-splicing" s
+and nt_quotes s =
+  let nt_quote_delimiters =
+    let quote_tokens_list = [
+      ("'", "quote");
+      ("`", "quasiquote");
+      (",@", "unquote-splicing");
+      (",", "unquote")
+    ] in
+    make_special_token_list quote_tokens_list word in
+  let nt_quoted_sexpr = caten nt_quote_delimiters nt_sexpr in
+  let quote_packer = (fun (name, sexpr) -> Pair(Symbol(name), Pair(sexpr, Nil))) in
+  let parser = pack nt_quoted_sexpr quote_packer in
+  parser s
 
 (* ----- invisible stuff handling (whitespaces and comments) ----- *)
 and nt_sexpr_comment s = (caten (word "#;") nt_sexpr) s
@@ -315,12 +318,11 @@ and nt_invisible s =
     (make_ignored nt_line_comment);
     (make_ignored nt_sexpr_comment)
   ] in
-    star invisible_parser s
+  star invisible_parser s
 
 (* ----- sexpr ----- *)
 and parser_nts_list = [nt_boolean; nt_char; nt_number; nt_string;
-                       nt_symbol; nt_pairs; nt_quoted;
-                       nt_quasi_quoted; nt_unquoted; nt_unquote_and_spliced]
+                       nt_symbol; nt_pairs; nt_quotes]
 and nt_sexpr s = make_paired_sym nt_invisible (disj_list parser_nts_list) s;;
 
 let nt_sexprs_input = make_paired nt_invisible nt_end_of_input (star nt_sexpr);;
@@ -328,6 +330,6 @@ let nt_sexprs_input = make_paired nt_invisible nt_end_of_input (star nt_sexpr);;
 let read_sexprs string =
   let s = string_to_list string in
   let (sexprs, _) = nt_sexprs_input s in
-    sexprs;;
+  sexprs;;
 
 end;; (* struct Reader *)
