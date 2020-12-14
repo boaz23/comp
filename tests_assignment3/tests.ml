@@ -825,6 +825,79 @@ let test_annotate_boxes = fun () ->
         LambdaSimple' ([], Set' (VarBound ("n", 0, 0), Const' (Sexpr (Number (Fraction (0, 1))))));
         LambdaSimple' ([], Set' (VarBound ("n", 0, 0), Const' (Sexpr (Number (Fraction (1, 1))))))
       ]
+    ));
+
+    test_annotate_boxes_case
+    "(define f
+       (lambda (y x) ((lambda () (set! y x))) y))"
+    (Def' (
+      VarFree "f",
+      LambdaSimple' (
+        ["y"; "x"],
+        Seq' [
+          Set' (VarParam ("y", 0), Box' (VarParam ("y", 0)));
+          Applic' (
+            LambdaSimple' (
+              [],
+              BoxSet' (
+                VarBound ("y", 0, 0),
+                Var' (VarBound ("x", 0, 1))
+              )
+            ),
+            []
+          );
+          BoxGet' (VarParam ("y", 0))
+        ]
+      )
+    ));
+
+
+    test_annotate_boxes_case
+    "(define f
+       (lambda (y x)
+         (if x
+           (begin ((lambda () (set! y x))) y)
+           (begin ((lambda (z) (set! x z)) y) x))
+         x))"
+    (Def' (
+      VarFree "f",
+      LambdaSimple' (
+        ["y"; "x"],
+        Seq' [
+          Set' (VarParam ("y", 0), Box' (VarParam ("y", 0)));
+          Set' (VarParam ("x", 1), Box' (VarParam ("x", 1)));
+          If' (
+            BoxGet' (VarParam ("x", 1)),
+            Seq' [
+              Applic' (
+                LambdaSimple' (
+                  [],
+                  BoxSet' (
+                    VarBound ("y", 0, 0),
+                    BoxGet' (VarBound ("x", 0, 1))
+                  )
+                ),
+                []
+              );
+              BoxGet' (VarParam ("y", 0));
+            ],
+            Seq' [
+              Applic' (
+                LambdaSimple' (
+                  ["z"],
+                  BoxSet' (
+                    VarBound ("x", 0, 1),
+                    Var' (VarParam ("z", 0))
+                  )
+                ),
+                [BoxGet' (VarParam ("y", 0))]
+              );
+              BoxGet' (VarParam ("x", 1));
+            ]
+          );
+          BoxGet' (VarParam ("x", 1))
+        ]
+      )
     ));;
 
 let main = fun () ->
