@@ -3,5 +3,6 @@
 *.ml.save
 \#*#
 readme.txt
+TODO.txt
 
 extra_stuff/*

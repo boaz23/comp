@@ -70,7 +70,7 @@ end;;
 module Semantics : SEMANTICS = struct
 
 let compute_bound_var_depth = fun depth var_depth_offset ->
-  depth - var_depth_offset - 2;;
+  depth - var_depth_offset - 1;;
 
 let annotate_lexical_addresses_helper = fun e ->
   let vars_map = Hashtbl.create 16 in
@@ -100,7 +100,7 @@ let annotate_lexical_addresses_helper = fun e ->
       let depth_offset = compute_bound_var_depth depth var_depth in
       if depth_offset = -1 then Var' (VarParam(var_name, var_pos))
       else if depth >= 0 then Var' (VarBound(var_name, depth_offset, var_pos))
-      else raise (Failure "negative depth of less than -1")
+      else raise (Failure "Lexical addressing: negative depth of less than -1")
     | None -> Var' (VarFree var_name)
 
   and annotate_lambda_simple = fun depth arg_names expr ->
@@ -112,9 +112,10 @@ let annotate_lexical_addresses_helper = fun e ->
     LambdaOpt' (req_arg_names, opt_arg_name, expr')
 
   and annotate_lambda = fun depth arg_names expr ->
+    let next_depth = depth + 1 in
     begin
-      add_args_to_map depth arg_names;
-      let expr' = annotate_traversal (depth + 1) expr in
+      add_args_to_map next_depth arg_names;
+      let expr' = annotate_traversal next_depth expr in
       begin
         remove_args_from_map arg_names;
         expr'
@@ -215,18 +216,18 @@ let annotate_tail_calls_helper = fun e ->
 let annotate_boxes_helper = fun e ->
   let box_arguments = fun factory annotation_args body_expr' ->
     let annotate_box_var_pos = fun factory box_factory depth args_pos_list var_pos var ->
-      if depth = -1 then
+      if depth = 1 then (* the var references a parameter lambda which needs boxing annotation (calling lambda) *)
         let annotation_arg_opt = List.find_opt
             (fun arg_pos -> arg_pos = var_pos)
             args_pos_list in
         match annotation_arg_opt with
         | Some _ -> box_factory var
         | None -> factory var
-      else if depth >= 0 then factory var
-      else raise (Failure "negative depth of less than -1") in
+      else if depth > 1 then factory var (* the var references a parameter of a child lambda of the calling lambda *)
+      else factory var (* the var references a parameter of a parent lambda of the calling lambda *) in
     let annotate_box_var = fun factory box_factory depth args_pos_list var ->
       match var with
-      | VarParam (_, var_pos) -> annotate_box_var_pos factory box_factory (depth - 1) args_pos_list var_pos var
+      | VarParam (_, var_pos) -> annotate_box_var_pos factory box_factory depth args_pos_list var_pos var
       | VarBound (_, depth_offset, var_pos) ->
         let dest_depth = compute_bound_var_depth depth depth_offset in
         annotate_box_var_pos factory box_factory dest_depth args_pos_list var_pos var
@@ -254,10 +255,11 @@ let annotate_boxes_helper = fun e ->
       match expr' with
       | Const' _ -> expr'
 
-      | Var' var -> annotate_box_var
-        (fun var -> Var' var)
-        (fun var -> BoxGet' var)
-        depth args_pos_list var
+      | Var' var ->
+        annotate_box_var
+          (fun var -> Var' var)
+          (fun var -> BoxGet' var)
+          depth args_pos_list var
 
       | If' (test, dit, dif) -> If' (
           annotate_boxes_traversal depth args_pos_list test,
@@ -305,7 +307,7 @@ let annotate_boxes_helper = fun e ->
             annotation_args in
           let body_expr'_list =
             let args_pos_list = List.map (fun (_, pos) -> pos) annotation_args in
-            let annotated_body_expr' = annotate_boxes_traversal 0 args_pos_list body_expr' in
+            let annotated_body_expr' = annotate_boxes_traversal 1 args_pos_list body_expr' in
             match annotated_body_expr' with
             | Seq' expr'_list -> expr'_list
             | _ -> [annotated_body_expr'] in
@@ -317,7 +319,7 @@ let annotate_boxes_helper = fun e ->
   let annotate_boxes_and_find_var_accesses = fun expr' ->
     let get_var_access_var = fun depth var read_write ->
       match var with
-      | VarParam (_, pos) -> [(depth - 1, pos, None, read_write)]
+      | VarParam (_, pos) -> [(depth, pos, None, read_write)]
       | VarBound (_, depth_offset, pos) ->
         let dest_depth = compute_bound_var_depth depth depth_offset in
         [(dest_depth, pos, None, read_write)]
@@ -430,10 +432,11 @@ let annotate_boxes_helper = fun e ->
          5. filter out all vars which are parameters of this lambda
          6. map the rest of the accesses to replace the highest lambda to be this lambda
          7. return the var accesses list *)
+      let depth = depth + 1 in
       let (
         annotated_body_expr',
         body_var_accesses
-      ) = do_traversal (depth + 1) body_expr' in
+      ) = do_traversal depth body_expr' in
 
       let (var_accesses, parent_lambdas_var_accesses) = List.partition
         (fun (dest_depth, _, _, _) -> dest_depth = depth)
