@@ -160,7 +160,7 @@ let make_test_analysis_from_string = fun f function_name string expected ->
     expr'_to_string
     (fun s actual_s expected_s ->
       Printf.printf
-        "error in %s test:  \n{ %s }\n  expected: { %s }\n  actual: { %s }\n"
+        "error in %s test:  \n{ %s }\n  expected: { %s }\n  actual: { %s }\n\n"
         function_name
         s
         expected_s
@@ -398,7 +398,54 @@ let test_annotate_lexical_addresses = fun () ->
             Var' (VarFree "v")
           ]
         )
-      ));;
+      ));
+
+  test_annotate_lexical_addresses_case
+    "(define f
+      (lambda (x)
+        (lambda (n)
+          (set! x 1)
+          (list
+            (begin
+              (set! n (* n n))
+              n)
+            (lambda () n)))
+        x))"
+    (Def' (
+      VarFree "f",
+      LambdaSimple' (
+        ["x"],
+        Seq' [
+          LambdaSimple' (
+            ["n"],
+            Seq' [
+              Set' (VarBound ("x", 0, 0), Const' (Sexpr (Number (Fraction (1, 1)))));
+              Applic' (
+                Var' (VarFree "list"), [
+                  Seq' [
+                    Set' (
+                      VarParam ("n", 0),
+                      Applic' (
+                        Var' (VarFree "*"), [
+                          Var' (VarParam ("n", 0));
+                          Var' (VarParam ("n", 0))
+                        ]
+                      )
+                    );
+                    Var' (VarParam ("n", 0))
+                  ];
+                  LambdaSimple' (
+                    [],
+                    Var' (VarBound ("n", 0, 0))
+                  );
+                ]
+              )
+            ]
+          );
+          Var' (VarParam ("x", 0))
+        ]
+      )
+    ));;
 
 let test_annotate_tail_calls = fun () ->
   test_annotate_tail_calls_case
@@ -619,6 +666,53 @@ let test_annotate_tail_calls = fun () ->
           [Var' (VarFree "x")]
         );
       ]
+    ));
+
+  test_annotate_tail_calls_case
+    "(define f
+      (lambda (x)
+        (lambda (n)
+          (set! x 1)
+          (list
+            (begin
+              (set! n (* n n))
+              n)
+            (lambda () n)))
+        x))"
+    (Def' (
+      VarFree "f",
+      LambdaSimple' (
+        ["x"],
+        Seq' [
+          LambdaSimple' (
+            ["n"],
+            Seq' [
+              Set' (VarBound ("x", 0, 0), Const' (Sexpr (Number (Fraction (1, 1)))));
+              ApplicTP' (
+                Var' (VarFree "list"), [
+                  Seq' [
+                    Set' (
+                      VarParam ("n", 0),
+                      Applic' (
+                        Var' (VarFree "*"), [
+                          Var' (VarParam ("n", 0));
+                          Var' (VarParam ("n", 0))
+                        ]
+                      )
+                    );
+                    Var' (VarParam ("n", 0))
+                  ];
+                  LambdaSimple' (
+                    [],
+                    Var' (VarBound ("n", 0, 0))
+                  );
+                ]
+              )
+            ]
+          );
+          Var' (VarParam ("x", 0))
+        ]
+      )
     ));;
 
 let test_annotate_boxes = fun () ->
