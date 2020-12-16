@@ -816,6 +816,55 @@ let test_annotate_boxes = fun () ->
     ));
 
   test_annotate_boxes_case
+    "(define f
+      (lambda (x)
+        (lambda (n)
+          (set! x 1)
+          (list
+            (begin
+              (set! n (* n n))
+              n)
+            (lambda () n)))
+        x))"
+    (Def' (
+      VarFree "f",
+      LambdaSimple' (
+        ["x"],
+        Seq' [
+          Set' (VarParam ("x", 0), Box' (VarParam ("x", 0)));
+          LambdaSimple' (
+            ["n"],
+            Seq' [
+              Set' (VarParam ("n", 0), Box' (VarParam ("n", 0)));
+              BoxSet' (VarBound ("x", 0, 0), Const' (Sexpr (Number (Fraction (1, 1)))));
+              ApplicTP' (
+                Var' (VarFree "list"), [
+                  Seq' [
+                    BoxSet' (
+                      VarParam ("n", 0),
+                      Applic' (
+                        Var' (VarFree "*"), [
+                          BoxGet' (VarParam ("n", 0));
+                          BoxGet' (VarParam ("n", 0))
+                        ]
+                      )
+                    );
+                    BoxGet' (VarParam ("n", 0))
+                  ];
+                  LambdaSimple' (
+                    [],
+                    BoxGet' (VarBound ("n", 0, 0))
+                  );
+                ]
+              )
+            ]
+          );
+          BoxGet' (VarParam ("x", 0))
+        ]
+      )
+    ));
+
+  test_annotate_boxes_case
     "(lambda (n)
       (lambda () (set! n 0))
       (lambda () (set! n 1)))"
@@ -850,7 +899,6 @@ let test_annotate_boxes = fun () ->
         ]
       )
     ));
-
 
     test_annotate_boxes_case
     "(define f
