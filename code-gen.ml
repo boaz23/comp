@@ -44,18 +44,17 @@ module Code_Gen (* : CODE_GEN *) = struct
     | Sexpr(sexpr1), Sexpr(sexpr2) -> sexpr_eq sexpr1 sexpr2
     | _ -> false
 
-  let rec remove_dup_consts_from_const_list = fun sexpr_list ->
-    remove_dup_consts sexpr_list []
-
-  and remove_dup_consts = fun sexpr_list clean_list ->
-    match sexpr_list with
-    | [] -> clean_list
-    | hd :: rest -> (
-      let is_dup = List.exists (fun sexpr -> constant_eq sexpr hd) clean_list in
-      if is_dup
-      then remove_dup_consts rest clean_list
-      else remove_dup_consts rest (clean_list @ [hd])
+  let remove_dup_from_list = fun list eq_function ->
+    List.fold_left
+    (fun acc item ->
+      let is_dup = List.exists (fun param_item -> eq_function param_item item) acc in
+      if(is_dup) then acc else acc @ [item]
     )
+    []
+    list;;
+
+  let remove_dup_consts_from_const_list = fun sexpr_list ->
+    remove_dup_from_list sexpr_list constant_eq;;
 
   (* Step 1 extract all Const from the asts *)
   let rec extract_const_from_expr'_list = fun expr'_list ->
@@ -119,17 +118,17 @@ module Code_Gen (* : CODE_GEN *) = struct
       extended_car @ extended_cdr @ [Sexpr(Pair(car_sepxr, cdr_sexpr))]
 
   let extend_const_list = fun const_list ->
-    let extended_const_list = 
-      List.fold_right
-      (fun const acc -> 
-        let extended_const = extend_const const in
-          extended_const @ acc 
-      )
-      const_list
-      [] in
-      remove_dup_consts_from_const_list extended_const_list
-  
-  (* Make asm code for literals*)
+    List.fold_right
+    (fun const acc -> 
+      let extended_const = extend_const const in
+        extended_const @ acc 
+    )
+    const_list
+    []
+
+  (* Make asm code for literals *)
+  let const_tbl_label_plus = "const_tbl+";;
+
   let make_literal_void_asm_code = "db T_VOID";;
   let make_literal_nil_asm_code = "db T_NIL";;
   let make_literal_bool_asm_code = fun bool addr ->
@@ -145,9 +144,11 @@ module Code_Gen (* : CODE_GEN *) = struct
     let str_len = String.length str in
       Printf.sprintf "MAKE_LITERAL_STRING(%d, \"%s\")" str_len str;;
   let make_literal_symbol_asm_code = fun addr ->
-      Printf.sprintf "MAKE_LITERAL_SYMBOL(%d)" addr;;
+      Printf.sprintf "MAKE_LITERAL_SYMBOL(%s%d)" const_tbl_label_plus addr;;
   let make_literal_pair_asm_code = fun addr_car addr_cdr ->
-      Printf.sprintf "MAKE_LITERAL_PAIR(%d, %d)" addr_car addr_cdr;;
+      Printf.sprintf "MAKE_LITERAL_PAIR(%s%d, %s%d)" 
+        const_tbl_label_plus addr_car 
+        const_tbl_label_plus addr_cdr;;
 
   let get_sob_size_of_sexpr_type = fun sexpr ->
     match sexpr with
