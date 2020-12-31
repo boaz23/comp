@@ -131,15 +131,15 @@ module Code_Gen (* : CODE_GEN *) = struct
 
   let make_literal_void_asm_code = "db T_VOID";;
   let make_literal_nil_asm_code = "db T_NIL";;
-  let make_literal_bool_asm_code = fun bool addr ->
+  let make_literal_bool_asm_code = fun bool ->
     let bool_val = if bool then 1 else 0 in
       Printf.sprintf "db T_BOOL, %d" bool_val;;
   let make_literal_char_asm_code = fun ch ->
     Printf.sprintf "db T_CHAR, %c" ch;;
-  let make_literal_number_asm_code = fun num den ->
+  let make_literal_rational_asm_code = fun num den ->
     Printf.sprintf "MAKE_LITERAL_RATIONAL(%d, %d)" num den;;
   let make_literal_float_asm_code = fun float ->
-    Printf.sprintf "MAKE_LITERAL_FLOAT(%d)" float;;
+    Printf.sprintf "MAKE_LITERAL_FLOAT(%f)" float;;
   let make_literal_string_asm_code = fun str ->
     let str_len = String.length str in
       Printf.sprintf "MAKE_LITERAL_STRING(%d, \"%s\")" str_len str;;
@@ -150,7 +150,8 @@ module Code_Gen (* : CODE_GEN *) = struct
         const_tbl_label_plus addr_car 
         const_tbl_label_plus addr_cdr;;
 
-  let get_sob_size_of_sexpr_type = fun sexpr ->
+
+  let get_sob_macro_size_of_sexpr_type = fun sexpr ->
     match sexpr with
     | Bool(_) -> "SOB_BOOL_SIZE"
     | Nil -> "SOB_NIL_SIZE"
@@ -167,10 +168,100 @@ module Code_Gen (* : CODE_GEN *) = struct
     | Symbol(_) -> "SOB_SYMBOL_SIZE"
     | Pair(_) -> "SOB_PAIR_SIZE";;
 
-  let get_sob_size_of_const = fun const ->
+  let get_sob_macro_size_of_const = fun const ->
     match const with
     | Void -> "SOB_VOID_SIZE"
+    | Sexpr(sexpr) -> get_sob_macro_size_of_sexpr_type sexpr;;
+
+
+  (* sob sizes *)
+  let tag_sob_size = 1;;
+  let nil_sob_size = tag_sob_size;;
+  let void_sob_size = tag_sob_size;;
+
+  let bool_sob_size = tag_sob_size + 1;;
+  let char_sob_size = tag_sob_size + 1;; 
+
+  let word_sob_size = tag_sob_size + 8;;
+  let float_sob_size = word_sob_size;;
+  let symbol_sob_size = word_sob_size;;
+
+  let string_sob_size = fun string ->
+    let str_length = String.length string in
+      word_sob_size + str_length;;
+
+  let double_word_sob_size = tag_sob_size + 16;;
+  let rational_word_sob_size = double_word_sob_size;;
+  let pair_sob_size = double_word_sob_size;;
+
+  let get_sob_size_of_sexpr_type = fun sexpr ->
+  match sexpr with
+  | Bool(_) -> bool_sob_size
+  | Nil -> nil_sob_size
+  | Number(number) -> (
+      match number with
+      | Fraction(_) -> rational_word_sob_size
+      | Float(_) -> float_sob_size
+    )
+  | Char(_) -> char_sob_size
+  | String(string) -> string_sob_size string
+  | Symbol(_) -> symbol_sob_size
+  | Pair(_) -> pair_sob_size;;
+
+  let get_sob_size_of_const = fun const ->
+    match const with
+    | Void -> void_sob_size
     | Sexpr(sexpr) -> get_sob_size_of_sexpr_type sexpr
+
+  (* step 5 *)
+  let build_consts_tbl = fun const_list ->
+    let rec build_consts_tbl_rec = fun sexpr ->
+      raise X_not_yet_implemented
+    and make_row_for_const = fun const current_const_tbl index ->
+      raise X_not_yet_implemented
+    and get_index_from_tuple = fun const_tuple ->
+        match const_tuple with
+        | (_, (index, _)) -> index
+    and make_asm_code =  fun const current_const_tbl index ->
+      match const with
+      | Void -> make_literal_void_asm_code
+      | Sexpr(sexpr) -> (
+        match sexpr with
+        | Nil -> make_literal_nil_asm_code
+        | Bool(bool) -> make_literal_bool_asm_code bool
+        | Number(number) -> (
+            match number with
+            | Fraction(num, den) -> make_literal_rational_asm_code num den
+            | Float(float) -> make_literal_float_asm_code float
+        )
+        | Char(ch) -> make_literal_char_asm_code ch
+        | String(string) -> make_literal_string_asm_code string
+        | Symbol(symbol_string) -> (
+          let sting_tuple = 
+            List.find
+            (fun (const, _) -> 
+              match const with
+              | Sexpr(String(string)) -> String.equal symbol_string string
+              | _ -> false
+            )             
+            current_const_tbl in
+          let string_tuple_index = get_index_from_tuple sting_tuple in
+            make_literal_symbol_asm_code string_tuple_index 
+        )
+        | Pair(car, cdr) -> (
+            (* after the sorting, the car is in the last index - 1 of the tuple 
+               and the cdr is in the last index
+            *)
+            let const_list_length = List.length current_const_tbl in
+            let car_tuple = List.nth current_const_tbl (const_list_length-2) in
+            let cdr_tuple = List.nth current_const_tbl (const_list_length-1) in
+            let car_index = get_index_from_tuple car_tuple in
+            let cdr_index = get_index_from_tuple cdr_tuple in
+              make_literal_pair_asm_code car_index cdr_index
+        )) in
+        (* edit *)
+        build_consts_tbl_rec;;
+
 
   let make_consts_tbl asts = raise X_not_yet_implemented;;
   let make_fvars_tbl asts = raise X_not_yet_implemented;;
