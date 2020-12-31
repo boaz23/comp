@@ -12,7 +12,8 @@
 
 %define TYPE_SIZE 1
 %define WORD_SIZE 8
-	
+%define DOUBLE_WORD_SIZE 16
+
 %define KB(n) n*1024
 %define MB(n) 1024*KB(n)
 %define GB(n) 1024*MB(n)
@@ -159,7 +160,28 @@
 %define MAKE_CLOSURE(r, env, body) \
         MAKE_TWO_WORDS r, T_CLOSURE, env, body
 
-	
+;;; Constant table SOB size
+%define SOB_TAG_SIZE 1
+%define SOB_SIZE(n) n+SOB_TAG_SIZE
+
+%define SOB_NIL_SIZE SOB_TAG_SIZE
+%define SOB_VOID_SIZE SOB_TAG_SIZE
+
+%define SOB_BYTE_SIZE SOB_SIZE(1)
+%define SOB_CHAR_SIZE SOB_BYTE_SIZE
+%define SOB_BOOL_SIZE SOB_BYTE_SIZE
+
+%define SOB_WORD_SIZE SOB_SIZE(WORD_SIZE)
+%define SOB_FLOAT_SIZE SOB_WORD_SIZE
+%define SOB_SYMBOL_SIZE SOB_WORD_SIZE
+
+%define SOB_STRING_SIZE(len) SOB_WORD_SIZE+len
+
+
+%define SOB_DOUBLE_WORD_SIZE SOB_SIZE(DOUBLE_WORD_SIZE)
+%define SOB_RATIONAL_SIZE SOB_DOUBLE_WORD_SIZE
+%define SOB_PAIR_SIZE SOB_DOUBLE_WORD_SIZE
+
 ;;; Macros and routines for printing Scheme OBjects to STDOUT
 %define CHAR_NUL 0
 %define CHAR_TAB 9
