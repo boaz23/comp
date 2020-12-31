@@ -117,10 +117,22 @@
         mov qword [%1+TYPE_SIZE+WORD_SIZE], %4
 %endmacro
 
+%macro MAKE_WORD_LIT 2
+	db %1
+        dq %2
+%endmacro
+
 %macro MAKE_WORDS_LIT 3
 	db %1
         dq %2
         dq %3
+%endmacro
+
+;; %1 length, %2 string
+%macro MAKE_STRING_LIT 2
+	db T_STRING
+        dq %2
+        db %3
 %endmacro
 
 %define MAKE_RATIONAL(r, num, den) \
@@ -128,7 +140,16 @@
 
 %define MAKE_LITERAL_RATIONAL(num, den) \
 	MAKE_WORDS_LIT T_RATIONAL, num, den
-	
+
+%define MAKE_LITERAL_FLOAT(num) \
+	MAKE_WORD_LIT T_FLOAT, num
+
+%define MAKE_LITERAL_STRING(str, len) \
+	MAKE_STRING_LIT len str
+
+%define MAKE_LITERAL_SYMBOL(addr) \
+	MAKE_WORD_LIT T_SYMBOL addr
+
 %define MAKE_PAIR(r, car, cdr) \
         MAKE_TWO_WORDS r, T_PAIR, car, cdr
 

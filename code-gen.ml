@@ -128,7 +128,26 @@ module Code_Gen (* : CODE_GEN *) = struct
       const_list
       [] in
       remove_dup_consts_from_const_list extended_const_list
-
+  
+  (* Make asm code for literals*)
+  let make_literal_void_asm_code = "db T_VOID";;
+  let make_literal_nil_asm_code = "db T_NIL";;
+  let make_literal_bool_asm_code = fun bool addr ->
+    let bool_val = if bool then 1 else 0 in
+      Printf.sprintf "db T_BOOL, [%d]" bool_val;;
+  let make_literal_char_asm_code = fun ch ->
+    Printf.sprintf "db T_CHAR, [%c]" ch;;
+  let make_literal_number_asm_code = fun num den ->
+    Printf.sprintf "MAKE_LITERAL_RATIONAL([%d], [%d])" num den;;
+  let make_literal_float_asm_code = fun float ->
+    Printf.sprintf "MAKE_LITERAL_FLOAT([%d])" float;;
+  let make_literal_string_asm_code = fun str ->
+    let str_len = String.length str in
+      Printf.sprintf "MAKE_LITERAL_STRING([%d], \"[%s]\")" str_len str;;
+  let make_literal_symbol_asm_code = fun addr ->
+      Printf.sprintf "MAKE_LITERAL_SYMBOL([%d])" addr;;
+  let make_literal_pair_asm_code = fun addr_car addr_cdr ->
+      Printf.sprintf "MAKE_LITERAL_PAIR([%d], [%d])" addr_car addr_cdr;;
 
   let make_consts_tbl asts = raise X_not_yet_implemented;;
   let make_fvars_tbl asts = raise X_not_yet_implemented;;
