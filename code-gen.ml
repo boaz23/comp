@@ -48,7 +48,7 @@ module Code_Gen (* : CODE_GEN *) = struct
     List.fold_left
     (fun acc item ->
       let is_dup = List.exists (fun param_item -> eq_function param_item item) acc in
-      if(is_dup) then acc else acc @ [item]
+      if is_dup then acc else acc @ [item]
     )
     []
     list;;
