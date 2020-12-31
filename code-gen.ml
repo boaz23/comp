@@ -31,7 +31,74 @@ module type CODE_GEN = sig
   val generate : (constant * (int * string)) list -> (string * int) list -> expr' -> string
 end;;
 
-module Code_Gen : CODE_GEN = struct
+module Code_Gen (* : CODE_GEN *) = struct
+
+  let constant_eq = fun const1 const2 ->
+    match const1, const2 with
+    | Void, Void -> true
+    | Sexpr(sexpr1), Sexpr(sexpr2) -> sexpr_eq sexpr1 sexpr2
+    | _ -> false
+
+  let rec remove_dup_consts_from_const_list = fun sexpr_list ->
+    remove_dup_consts sexpr_list []
+
+  and remove_dup_consts = fun sexpr_list clean_list ->
+    match sexpr_list with
+    | [] -> clean_list
+    | hd :: rest -> (
+      let is_dup = List.exists (fun sexpr -> constant_eq sexpr hd) clean_list in
+      if is_dup
+      then remove_dup_consts rest clean_list
+      else remove_dup_consts rest (hd :: clean_list)
+    )
+
+
+(* 
+============== Const table ==============
+*)
+
+  let rec extract_const_from_expr'_list = fun expr'_list ->
+    List.fold_left 
+    (fun acc expr' ->
+      let extracted_const_list = extract_all_const expr' in
+        acc @ extracted_const_list
+    )
+    []
+    expr'_list
+
+  and extract_const_from_applic = fun operator_expr' operands_expr'_list ->
+    extract_const_from_expr'_list (operator_expr' :: operands_expr'_list)
+
+  and extract_all_const = fun expr' ->
+  match expr' with
+  | Const'(const) -> [const]
+  | Var'(var) -> []
+  | Box'(var) -> []
+  | BoxGet'(var) -> []
+  | BoxSet'(var, e') -> extract_all_const e'
+
+  | If'(test, dit, dif) ->
+      extract_const_from_expr'_list [test; dit; dif]
+
+  | Seq'(expr'_list) ->
+      extract_const_from_expr'_list expr'_list
+
+  | Set'(var, expr') -> extract_all_const expr'
+  | Def'(var, expr') -> extract_all_const expr'
+
+  | Or'(expr'_list) ->
+      extract_const_from_expr'_list expr'_list
+
+  | LambdaSimple'(arg_names, body_expr') ->
+      extract_all_const body_expr'
+  | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') ->
+      extract_all_const body_expr'
+
+  | Applic'(operator_expr', operands_expr'_list) ->
+      extract_const_from_applic operator_expr' operands_expr'_list
+  | ApplicTP'(operator_expr', operands_expr'_list) ->
+      extract_const_from_applic operator_expr' operands_expr'_list;;
+
   let make_consts_tbl asts = raise X_not_yet_implemented;;
   let make_fvars_tbl asts = raise X_not_yet_implemented;;
   let generate consts fvars e = raise X_not_yet_implemented;;
