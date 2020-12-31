@@ -33,6 +33,11 @@ end;;
 
 module Code_Gen (* : CODE_GEN *) = struct
 
+(* 
+============== Const table ==============
+*)
+
+  (* Step 2 and 4 remove duplicates *)
   let constant_eq = fun const1 const2 ->
     match const1, const2 with
     | Void, Void -> true
@@ -49,14 +54,10 @@ module Code_Gen (* : CODE_GEN *) = struct
       let is_dup = List.exists (fun sexpr -> constant_eq sexpr hd) clean_list in
       if is_dup
       then remove_dup_consts rest clean_list
-      else remove_dup_consts rest (hd :: clean_list)
+      else remove_dup_consts rest (clean_list @ [hd])
     )
 
-
-(* 
-============== Const table ==============
-*)
-
+  (* Step 1 extract all Const from the asts *)
   let rec extract_const_from_expr'_list = fun expr'_list ->
     List.fold_left 
     (fun acc expr' ->
@@ -98,6 +99,36 @@ module Code_Gen (* : CODE_GEN *) = struct
       extract_const_from_applic operator_expr' operands_expr'_list
   | ApplicTP'(operator_expr', operands_expr'_list) ->
       extract_const_from_applic operator_expr' operands_expr'_list;;
+
+  (* Step 3 and 4 extend the const list and remove duplicates *)
+  let rec extend_const = fun const ->
+    match const with
+    | Void -> [Void]
+    | Sexpr sexpr -> extend_sexpr sexpr
+
+  and extend_sexpr = fun sexpr ->
+    match sexpr with
+    | Symbol(string) -> [Sexpr(String(string)); Sexpr(sexpr)]
+    | Pair(car_sexpr, cdr_sexpr) ->
+        extend_pair car_sexpr cdr_sexpr
+    | _ -> [Sexpr(sexpr)]
+  
+  and extend_pair = fun car_sepxr cdr_sexpr ->
+    let extended_car = extend_sexpr car_sepxr in
+    let extended_cdr = extend_sexpr cdr_sexpr in
+      extended_car @ extended_cdr @ [Sexpr(Pair(car_sepxr, cdr_sexpr))]
+
+  let extend_const_list = fun const_list ->
+    let extended_const_list = 
+      List.fold_right
+      (fun const acc -> 
+        let extended_const = extend_const const in
+          extended_const @ acc 
+      )
+      const_list
+      [] in
+      remove_dup_consts_from_const_list extended_const_list
+
 
   let make_consts_tbl asts = raise X_not_yet_implemented;;
   let make_fvars_tbl asts = raise X_not_yet_implemented;;
