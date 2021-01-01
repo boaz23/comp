@@ -214,7 +214,20 @@ module Code_Gen (* : CODE_GEN *) = struct
     | Sexpr(sexpr) -> get_sob_size_of_sexpr_type sexpr
 
   (* step 5 *)
-  let build_consts_tbl = fun const_list ->
+
+  let get_const_from_tuple = fun const_tuple ->
+      match const_tuple with
+      | (const, (_, _)) -> const;;
+
+  let get_index_from_tuple = fun const_tuple ->
+      match const_tuple with
+      | (_, (index, _)) -> index;;
+
+  let get_code_from_tuple = fun const_tuple ->
+    match const_tuple with
+    | (_, (_, asm_code)) -> asm_code;;
+
+  let build_consts_tbl_from_const_list = fun const_list ->
     let rec build_consts_tbl_rec = fun const_list tuple_const_list index ->
       match const_list with
       | [] -> tuple_const_list
@@ -225,14 +238,6 @@ module Code_Gen (* : CODE_GEN *) = struct
         let const_tuple = (const, (index, const_asm_code)) in
          build_consts_tbl_rec rest (tuple_const_list @ [const_tuple]) const_index
       )
-
-    and get_const_from_tuple = fun const_tuple ->
-        match const_tuple with
-        | (const, (_, _)) -> const
-
-    and get_index_from_tuple = fun const_tuple ->
-        match const_tuple with
-        | (_, (index, _)) -> index
 
     and get_tuple_of_const_from_tbl = fun const const_tbl ->
       let eq = constant_eq const in
@@ -280,16 +285,37 @@ module Code_Gen (* : CODE_GEN *) = struct
       ) in
     build_consts_tbl_rec const_list [] 0;;
 
-  let build_const_tbl_tuple_list = fun expr' ->
-    let extracted_consts_list = extract_all_const expr' in
+  let init_const_list_for_const_tbl = 
+    [
+      Const'(Void);
+      Const'(Sexpr(Nil));
+      Const'(Sexpr(Bool(false)));
+      Const'(Sexpr(Bool(true)));
+    ];;
+
+  let build_const_tbl = fun expr'_list ->
+    let expr'_list = (init_const_list_for_const_tbl @ expr'_list) in 
+    let extracted_consts_list = extract_const_from_expr'_list expr'_list in
     let extracted_consts_list = 
       remove_dup_consts_from_const_list extracted_consts_list in
     let extended_consts_list = extend_const_list (extracted_consts_list) in
     let extracted_consts_list = 
       remove_dup_consts_from_const_list extended_consts_list in
-    build_consts_tbl extracted_consts_list;;
+    build_consts_tbl_from_const_list extracted_consts_list;;
 
-  let make_consts_tbl asts = raise X_not_yet_implemented;;
+  let generate_asm_code_from_const_tbl = fun const_tbl ->
+    List.fold_left
+    (fun acc tuple ->
+      let asm_tuple_code = get_code_from_tuple tuple in
+      let asm_tuple_code = asm_tuple_code ^ "\n" in
+        acc ^ asm_tuple_code
+    )
+    ""
+    const_tbl;;
+
+  let make_consts_tbl = fun asts ->
+    build_const_tbl asts 
+  
   let make_fvars_tbl asts = raise X_not_yet_implemented;;
   let generate consts fvars e = raise X_not_yet_implemented;;
 end;;
