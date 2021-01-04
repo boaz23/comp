@@ -26,6 +26,8 @@ let test_const_tbl = fun code expected_const_tbl ->
    )
    else ();;
 
+(* let a = Code_Gen.make_fvars_tbl (string_to_asts "(define a 1)");; *)
+
 let consts_tbl_tests() = 
 
    test_const_tbl "(list \"ab\" '(1 2) 'c 'ab)"

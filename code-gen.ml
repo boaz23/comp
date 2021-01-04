@@ -216,16 +216,13 @@ module Code_Gen (* : CODE_GEN *) = struct
   (* step 5 *)
 
   let get_const_from_tuple = fun const_tuple ->
-      match const_tuple with
-      | (const, (_, _)) -> const;;
+    fst const_tuple;;
 
   let get_index_from_tuple = fun const_tuple ->
-      match const_tuple with
-      | (_, (index, _)) -> index;;
+    fst (snd const_tuple);;
 
   let get_code_from_tuple = fun const_tuple ->
-    match const_tuple with
-    | (_, (_, asm_code)) -> asm_code;;
+    snd (snd const_tuple);;
 
   let build_consts_tbl_from_const_list = fun const_list ->
     let rec build_consts_tbl_rec = fun const_list tuple_const_list index ->
@@ -322,52 +319,52 @@ module Code_Gen (* : CODE_GEN *) = struct
   | VarFree var -> [var]
   | _ -> []
 
-  let rec extract_fvars_from_expr'_list = fun expr'_list ->
+  let rec extract_fvar_names_from_expr'_list = fun expr'_list ->
     List.fold_left
     (fun acc expr' ->
-      let extracted_fvars = extract_fvars_from_expr' expr' in 
+      let extracted_fvars = extract_fvar_names_from_expr' expr' in 
         acc @ extracted_fvars
     )
     []
     expr'_list
 
-  and extract_fvars_from_var_and_expr'_list = fun var expr'_list ->
+  and extract_fvar_names_from_var_and_expr'_list = fun var expr'_list ->
     let fvar = extract_fvar_string var in
-    let extracted_fvars_from_list = extract_fvars_from_expr'_list expr'_list in
+    let extracted_fvars_from_list = extract_fvar_names_from_expr'_list expr'_list in
       fvar @ extracted_fvars_from_list
 
-  and extract_fvars_from_expr' = fun expr'  ->
+  and extract_fvar_names_from_expr' = fun expr'  ->
     match expr' with
     | Const'(const) -> []
     | Var'(var) -> extract_fvar_string var 
     | Box'(var) -> extract_fvar_string var 
     | BoxGet'(var) -> extract_fvar_string var 
     | BoxSet'(var, expr') -> 
-        extract_fvars_from_var_and_expr'_list var [expr'] 
+        extract_fvar_names_from_var_and_expr'_list var [expr'] 
 
     | If'(test, dit, dif) ->
-        extract_fvars_from_expr'_list [test; dit; dif] 
+        extract_fvar_names_from_expr'_list [test; dit; dif] 
 
     | Seq'(expr'_list) ->
-        extract_fvars_from_expr'_list expr'_list 
+        extract_fvar_names_from_expr'_list expr'_list 
 
     | Set'(var, expr') -> 
-        extract_fvars_from_var_and_expr'_list var [expr'] 
+        extract_fvar_names_from_var_and_expr'_list var [expr'] 
     | Def'(var, expr') -> 
-        extract_fvars_from_var_and_expr'_list var [expr'] 
+        extract_fvar_names_from_var_and_expr'_list var [expr'] 
 
     | Or'(expr'_list) ->
-        extract_fvars_from_expr'_list expr'_list 
+        extract_fvar_names_from_expr'_list expr'_list 
 
     | LambdaSimple'(arg_names, body_expr') ->
-        extract_fvars_from_expr' body_expr' 
+        extract_fvar_names_from_expr' body_expr' 
     | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') ->
-        extract_fvars_from_expr' body_expr'
+        extract_fvar_names_from_expr' body_expr'
 
     | Applic'(operator_expr', operands_expr'_list) ->
-        extract_fvars_from_expr'_list (operator_expr' :: operands_expr'_list)
+        extract_fvar_names_from_expr'_list (operator_expr' :: operands_expr'_list)
     | ApplicTP'(operator_expr', operands_expr'_list) ->
-        extract_fvars_from_expr'_list (operator_expr' :: operands_expr'_list);;
+        extract_fvar_names_from_expr'_list (operator_expr' :: operands_expr'_list);;
 
   let reserved_fvar_list = [
     "append"; "apply"; "boolean?"; "car"; "cdr";
@@ -380,13 +377,17 @@ module Code_Gen (* : CODE_GEN *) = struct
     "string-set!"; "string?"; "symbol?"; "zero?"; "symbol->string"
   ];;
 
+  let get_index_in_fvars_tbl = fun fvar_name fvars_tbl ->
+    let fvar_tuple = List.find (fun str -> str = fvar_name) fvars_tbl in
+      snd fvar_tuple;;
+
   let make_index_tuple_from_list = fun list ->
     List.mapi
     (fun index item -> (item, index))
     list
 
   let build_fvars_tbl = fun expr'_list ->
-    let extracted_fvars_names = extract_fvars_from_expr'_list expr'_list in
+    let extracted_fvars_names = extract_fvar_names_from_expr'_list expr'_list in
     let fvars_names = reserved_fvar_list @ extracted_fvars_names in
     let fvars_names = 
       remove_dup_from_list 
