@@ -313,10 +313,93 @@ module Code_Gen (* : CODE_GEN *) = struct
     ""
     const_tbl;;
 
+(* 
+============== Free var table ==============
+*)
+
+  let extract_fvar_string = fun var ->
+  match var with
+  | VarFree var -> [var]
+  | _ -> []
+
+  let rec extract_fvars_from_expr'_list = fun expr'_list ->
+    List.fold_left
+    (fun acc expr' ->
+      let extracted_fvars = extract_fvars_from_expr' expr' in 
+        acc @ extracted_fvars
+    )
+    []
+    expr'_list
+
+  and extract_fvars_from_var_and_expr'_list = fun var expr'_list ->
+    let fvar = extract_fvar_string var in
+    let extracted_fvars_from_list = extract_fvars_from_expr'_list expr'_list in
+      fvar @ extracted_fvars_from_list
+
+  and extract_fvars_from_expr' = fun expr'  ->
+    match expr' with
+    | Const'(const) -> []
+    | Var'(var) -> extract_fvar_string var 
+    | Box'(var) -> extract_fvar_string var 
+    | BoxGet'(var) -> extract_fvar_string var 
+    | BoxSet'(var, expr') -> 
+        extract_fvars_from_var_and_expr'_list var [expr'] 
+
+    | If'(test, dit, dif) ->
+        extract_fvars_from_expr'_list [test; dit; dif] 
+
+    | Seq'(expr'_list) ->
+        extract_fvars_from_expr'_list expr'_list 
+
+    | Set'(var, expr') -> 
+        extract_fvars_from_var_and_expr'_list var [expr'] 
+    | Def'(var, expr') -> 
+        extract_fvars_from_var_and_expr'_list var [expr'] 
+
+    | Or'(expr'_list) ->
+        extract_fvars_from_expr'_list expr'_list 
+
+    | LambdaSimple'(arg_names, body_expr') ->
+        extract_fvars_from_expr' body_expr' 
+    | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') ->
+        extract_fvars_from_expr' body_expr'
+
+    | Applic'(operator_expr', operands_expr'_list) ->
+        extract_fvars_from_expr'_list (operator_expr' :: operands_expr'_list)
+    | ApplicTP'(operator_expr', operands_expr'_list) ->
+        extract_fvars_from_expr'_list (operator_expr' :: operands_expr'_list);;
+
+  let reserved_fvar_list = [
+    "append"; "apply"; "boolean?"; "car"; "cdr";
+    "char->integer"; "char?"; "cons"; "cons*"; "denominator";
+    "eq?"; "equal?"; "exact->inexact"; "flonum?"; "fold-left";
+    "fold-right"; "gcd4"; "integer?"; "integer->char"; "length";
+    "list"; "list?"; "make-string"; "map"; "not"; "null?"; "number?";
+    "numerator"; "pair?"; "procedure?"; "rational?"; "set-car!";
+    "set-cdr!"; "string->list"; "string-length"; "string-ref"; 
+    "string-set!"; "string?"; "symbol?"; "zero?"; "symbol->string"
+  ];;
+
+  let make_index_tuple_from_list = fun list ->
+    List.mapi
+    (fun index item -> (item, index))
+    list
+
+  let build_fvars_tbl = fun expr'_list ->
+    let extracted_fvars_names = extract_fvars_from_expr'_list expr'_list in
+    let fvars_names = reserved_fvar_list @ extracted_fvars_names in
+    let fvars_names = 
+      remove_dup_from_list 
+      fvars_names
+      (fun str1 str2 -> str1 = str2) in
+    make_index_tuple_from_list fvars_names
+
   let make_consts_tbl = fun asts ->
     build_const_tbl asts 
   
-  let make_fvars_tbl asts = raise X_not_yet_implemented;;
+  let make_fvars_tbl asts = 
+    build_fvars_tbl asts;;
+
   let generate consts fvars e = raise X_not_yet_implemented;;
 end;;
 
