@@ -531,6 +531,10 @@ module Code_Gen (* : CODE_GEN *) = struct
       let generated_code_for_var' = generate_code_for_set_var var in
       concat_list_of_code [generated_code_for_expr'; generated_code_for_var']
 
+    and generate_code_for_sequence = fun expr'_list ->
+      let code_list = List.map generate_code expr'_list in
+        concat_list_of_code code_list
+
     (*========== Generate code ==========*)
 
     and generate_code = fun expr' ->
@@ -546,7 +550,7 @@ module Code_Gen (* : CODE_GEN *) = struct
           raise X_not_yet_implemented
 
       | Seq'(expr'_list) ->
-         raise X_not_yet_implemented
+         generate_code_for_sequence expr'_list
 
       | Set'(var, expr') -> 
           generate_code_for_set var expr'
