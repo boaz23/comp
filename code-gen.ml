@@ -383,8 +383,7 @@ module Code_Gen (* : CODE_GEN *) = struct
   ];;
 
   let get_index_in_fvars_tbl = fun fvar_name fvars_tbl ->
-    let fvar_tuple = List.find (fun str -> str = fvar_name) fvars_tbl in
-      snd fvar_tuple;;
+    List.assoc fvar_name fvars_tbl;;
 
   let make_index_tuple_from_list = fun list ->
     List.mapi
@@ -400,31 +399,84 @@ module Code_Gen (* : CODE_GEN *) = struct
       (fun str1 str2 -> str1 = str2) in
     make_index_tuple_from_list fvars_names
 
-  let make_consts_tbl = fun asts ->
-    build_const_tbl asts 
-  
-  let make_fvars_tbl asts = 
-    build_fvars_tbl asts;;
-
 (* 
 ============== Code generation ==============
 *)
 
+  let word_size = 8;;
+  let word_size_str = "8";;
+
+  let rax_reg_str =  "rax";;
+  let rbx_reg_str =  "rbx";;
+  let rbp_reg_str =  "rbp";;
+
+
   let const_table_label = "const_tbl";;
+  let fvar_tabel_label = "fvar_tbl";;
 
   let mov_to_register = fun reg from ->
     "mov " ^ reg ^ "," ^ from;;
 
+  let mov_to_register_qword_indirect = fun reg from ->
+    Printf.sprintf "mov %s, qword [%s]" reg from;;
+
+  let mov_to_register_from_indirect = fun reg reg_indirect offset ->
+    let offset_from_rbp = 
+      Printf.sprintf "%s + %d*%d" reg_indirect word_size offset in
+    mov_to_register_qword_indirect reg offset_from_rbp;;
+
+  let mov_to_register_from_rbp = fun reg offset ->
+    mov_to_register_from_indirect reg rbp_reg_str offset;;
+
+  let mov_to_register_var_param = fun reg minor ->
+    mov_to_register_from_rbp reg (4 +  minor);;
+
+  let get_lex_env_code = mov_to_register_from_rbp rax_reg_str 2;;
+
   let generate_code_wrapper = fun consts_tbl fvars expr' ->
+
+    (*========== Const ==========*)
+
     let generate_code_for_constant = fun const ->
       let const_index = get_index_of_const_in_const_tbl const consts_tbl in
-      let const_code_address = const_table_label ^ "+" ^ (string_of_int const_index) in
-        mov_to_register "rax" const_code_address in
+      let const_code_address = const_table_label ^ " + " ^ (string_of_int const_index) in
+        mov_to_register rax_reg_str const_code_address in
+
+
+    (*========== Vars ==========*)
+
+    let generate_code_for_free_var = fun var_name ->
+      let var_offset_in_fvars_tbl = get_index_in_fvars_tbl var_name fvars in
+      let code_adress = fvar_tabel_label ^ "+" ^ (string_of_int var_offset_in_fvars_tbl) in
+        mov_to_register_qword_indirect
+        rax_reg_str
+        code_adress in
+
+    let generate_code_for_var_param = fun minor ->
+      mov_to_register_var_param rax_reg_str minor in 
+
+    let generate_code_for_var_bound = fun major minor ->
+      let indirect_from_rax = mov_to_register_from_indirect rax_reg_str rax_reg_str in
+      String.concat
+      "\n"
+      [
+        get_lex_env_code;
+        indirect_from_rax major;
+        indirect_from_rax minor
+      ] in
+
+    let generate_code_for_var = fun var ->
+      match var with
+      | VarFree(var_name) -> generate_code_for_free_var var_name
+      | VarParam(_, minor) -> generate_code_for_var_param minor
+      | VarBound (_, major, minor) -> generate_code_for_var_bound major minor in
+
+    (*========== Generate code ==========*)
 
     let generate_code = fun expr' ->
       match expr' with
       | Const'(const) -> generate_code_for_constant const
-      | Var'(var) -> raise X_not_yet_implemented
+      | Var'(var) -> generate_code_for_var var
       | Box'(var) -> raise X_not_yet_implemented 
       | BoxGet'(var) -> raise X_not_yet_implemented
       | BoxSet'(var, expr') -> 
@@ -454,6 +506,12 @@ module Code_Gen (* : CODE_GEN *) = struct
       | ApplicTP'(operator_expr', operands_expr'_list) ->
           raise X_not_yet_implemented in
     generate_code expr';;
+
+  let make_consts_tbl = fun asts ->
+    build_const_tbl asts 
+  
+  let make_fvars_tbl asts = 
+    build_fvars_tbl asts;;
 
   let generate consts fvars e = 
     generate_code_wrapper consts fvars e;;
