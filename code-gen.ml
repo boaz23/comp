@@ -135,7 +135,7 @@ module Code_Gen (* : CODE_GEN *) = struct
     let bool_val = if bool then 1 else 0 in
       Printf.sprintf "db T_BOOL, %d" bool_val;;
   let make_literal_char_asm_code = fun ch ->
-    Printf.sprintf "db T_CHAR, %c" ch;;
+    Printf.sprintf "db T_CHAR, \"%s\"" (String.make 1 ch);;
   let make_literal_rational_asm_code = fun num den ->
     Printf.sprintf "MAKE_LITERAL_RATIONAL(%d, %d)" num den;;
   let make_literal_float_asm_code = fun float ->

@@ -132,8 +132,8 @@
 ;; %1 length, %2 string
 %macro MAKE_STRING_LIT 2
 	db T_STRING
-        dq %2
-        db %3
+        dq %1
+        db %2
 %endmacro
 
 %define MAKE_RATIONAL(r, num, den) \
@@ -145,7 +145,7 @@
 %define MAKE_LITERAL_FLOAT(num) \
 	MAKE_WORD_LIT T_FLOAT, num
 
-%define MAKE_LITERAL_STRING(string, len) \
+%define MAKE_LITERAL_STRING(len, string) \
 	MAKE_STRING_LIT len, string
 
 %define MAKE_LITERAL_SYMBOL(addr) \
