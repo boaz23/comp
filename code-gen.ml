@@ -218,7 +218,7 @@ module Code_Gen (* : CODE_GEN *) = struct
   let get_const_from_tuple = fun const_tuple ->
     fst const_tuple;;
 
-  let get_index_from_tuple = fun const_tuple ->
+  let get_index_from_const_tuple = fun const_tuple ->
     fst (snd const_tuple);;
 
   let get_code_from_tuple = fun const_tuple ->
@@ -253,14 +253,14 @@ module Code_Gen (* : CODE_GEN *) = struct
     and make_asm_code_symbol_from_const_tbl = fun symbol_string current_tuple_const_tbl ->
       let string_const = Sexpr(String(symbol_string)) in
       let sting_tuple = get_tuple_of_const_from_tbl string_const current_tuple_const_tbl in
-      let string_index = get_index_from_tuple sting_tuple in
+      let string_index = get_index_from_const_tuple sting_tuple in
         make_literal_symbol_asm_code string_index
 
     and make_asm_code_pair_from_const_tbl = fun car cdr current_tuple_const_tbl ->
       let car_tuple = get_tuple_of_const_from_tbl (Sexpr(car)) current_tuple_const_tbl in
       let cdr_tuple = get_tuple_of_const_from_tbl (Sexpr(cdr)) current_tuple_const_tbl in
-      let car_index = get_index_from_tuple car_tuple in
-      let cdr_index = get_index_from_tuple cdr_tuple in
+      let car_index = get_index_from_const_tuple car_tuple in
+      let cdr_index = get_index_from_const_tuple cdr_tuple in
         make_literal_pair_asm_code car_index cdr_index
 
     and make_asm_code =  fun const current_tuple_const_tbl index ->
@@ -299,6 +299,10 @@ module Code_Gen (* : CODE_GEN *) = struct
     let extracted_consts_list = 
       remove_dup_consts_from_const_list extended_consts_list in
     build_consts_tbl_from_const_list extracted_consts_list;;
+
+  let get_index_of_const_in_const_tbl = fun const const_tbl ->
+    let const_tuple = List.assoc const const_tbl in
+      get_index_from_const_tuple const_tuple;;
 
   let generate_asm_code_from_const_tbl = fun const_tbl ->
     List.fold_left
@@ -367,6 +371,7 @@ module Code_Gen (* : CODE_GEN *) = struct
         extract_fvar_names_from_expr'_list (operator_expr' :: operands_expr'_list);;
 
   let reserved_fvar_list = [
+    "+"; "-"; "*"; "/"; "<"; "="; ">";
     "append"; "apply"; "boolean?"; "car"; "cdr";
     "char->integer"; "char?"; "cons"; "cons*"; "denominator";
     "eq?"; "equal?"; "exact->inexact"; "flonum?"; "fold-left";
@@ -400,6 +405,55 @@ module Code_Gen (* : CODE_GEN *) = struct
   
   let make_fvars_tbl asts = 
     build_fvars_tbl asts;;
+
+(* 
+============== Code generation ==============
+*)
+
+  let const_table_label = "const_tbl";;
+
+  let mov_to_register = fun reg from ->
+    "mov " ^ reg ^ "," ^ from;;
+
+  let generate_code_wrapper = fun consts_tbl fvars expr' ->
+    let generate_code_for_constant = fun const ->
+      let const_index = get_index_of_const_in_const_tbl const consts_tbl in
+      let const_code_address = const_table_label ^ "+" ^ const_index in
+        mov_to_register "rax" const_code_address in
+
+    let generate_code = fun expr' ->
+      match expr' with
+      | Const'(const) -> generate_code_for_constant const
+      | Var'(var) -> raise X_not_yet_implemented
+      | Box'(var) -> raise X_not_yet_implemented 
+      | BoxGet'(var) -> raise X_not_yet_implemented
+      | BoxSet'(var, expr') -> 
+          raise X_not_yet_implemented
+
+      | If'(test, dit, dif) ->
+          raise X_not_yet_implemented
+
+      | Seq'(expr'_list) ->
+         raise X_not_yet_implemented
+
+      | Set'(var, expr') -> 
+          raise X_not_yet_implemented
+      | Def'(var, expr') -> 
+          raise X_not_yet_implemented
+
+      | Or'(expr'_list) ->
+          raise X_not_yet_implemented
+
+      | LambdaSimple'(arg_names, body_expr') ->
+          raise X_not_yet_implemented
+      | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') ->
+          raise X_not_yet_implemented
+
+      | Applic'(operator_expr', operands_expr'_list) ->
+          raise X_not_yet_implemented
+      | ApplicTP'(operator_expr', operands_expr'_list) ->
+          raise X_not_yet_implemented in
+    generate_code expr';;
 
   let generate consts fvars e = raise X_not_yet_implemented;;
 end;;
