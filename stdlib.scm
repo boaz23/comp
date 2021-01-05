@@ -19,7 +19,7 @@
       (map-many f args)))))
 
 
-(define fold-left 
+(define fold-left
   #;(Add your implementation here
      Note: The file won't compile like this, beacuase your tag-parser requires define to have a second expression.
      This is on purpose, so you don't compile the library without completing this implementation by mistake.))
@@ -48,7 +48,7 @@
 
 (define list (lambda x x))
 
-(define list? 
+(define list?
   (let ((null? null?)
 	(pair? pair?)
 	(cdr cdr))
@@ -133,7 +133,7 @@
 	    0
 	    (gcd-loop (car x) (cdr x)))))))
 
-(define zero? 
+(define zero?
   (let ((= =))
     (lambda (x) (= x 0))))
 

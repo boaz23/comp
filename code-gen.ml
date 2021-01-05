@@ -20,12 +20,12 @@ module type CODE_GEN = sig
      - The keys are the fvar names as strings
      - The values are the offsets from the base fvars_table address in bytes
      For example: [("boolean?", 0)]
-   *)  
+   *)
   val make_fvars_tbl : expr' list -> (string * int) list
 
   (* If you change the types of the constants and fvars tables, you will have to update
-     this signature to match: The first argument is the constants table type, the second 
-     argument is the fvars table type, and the third is an expr' that has been annotated 
+     this signature to match: The first argument is the constants table type, the second
+     argument is the fvars table type, and the third is an expr' that has been annotated
      by the semantic analyser.
    *)
   val generate : (constant * (int * string)) list -> (string * int) list -> expr' -> string
@@ -33,7 +33,7 @@ end;;
 
 module Code_Gen (* : CODE_GEN *) = struct
 
-(* 
+(*
 ============== Const table ==============
 *)
 
@@ -58,7 +58,7 @@ module Code_Gen (* : CODE_GEN *) = struct
 
   (* Step 1 extract all Const from the asts *)
   let rec extract_const_from_expr'_list = fun expr'_list ->
-    List.fold_left 
+    List.fold_left
     (fun acc expr' ->
       let extracted_const_list = extract_all_const expr' in
         acc @ extracted_const_list
@@ -111,7 +111,7 @@ module Code_Gen (* : CODE_GEN *) = struct
     | Pair(car_sexpr, cdr_sexpr) ->
         extend_pair car_sexpr cdr_sexpr
     | _ -> [Sexpr(sexpr)]
-  
+
   and extend_pair = fun car_sepxr cdr_sexpr ->
     let extended_car = extend_sexpr car_sepxr in
     let extended_cdr = extend_sexpr cdr_sexpr in
@@ -119,9 +119,9 @@ module Code_Gen (* : CODE_GEN *) = struct
 
   let extend_const_list = fun const_list ->
     List.fold_right
-    (fun const acc -> 
+    (fun const acc ->
       let extended_const = extend_const const in
-        extended_const @ acc 
+        extended_const @ acc
     )
     const_list
     []
@@ -146,8 +146,8 @@ module Code_Gen (* : CODE_GEN *) = struct
   let make_literal_symbol_asm_code = fun addr ->
       Printf.sprintf "MAKE_LITERAL_SYMBOL(%s%d)" const_tbl_label_plus addr;;
   let make_literal_pair_asm_code = fun addr_car addr_cdr ->
-      Printf.sprintf "MAKE_LITERAL_PAIR(%s%d, %s%d)" 
-        const_tbl_label_plus addr_car 
+      Printf.sprintf "MAKE_LITERAL_PAIR(%s%d, %s%d)"
+        const_tbl_label_plus addr_car
         const_tbl_label_plus addr_cdr;;
 
 
@@ -180,7 +180,7 @@ module Code_Gen (* : CODE_GEN *) = struct
   let void_sob_size = tag_sob_size;;
 
   let bool_sob_size = tag_sob_size + 1;;
-  let char_sob_size = tag_sob_size + 1;; 
+  let char_sob_size = tag_sob_size + 1;;
 
   let word_sob_size = tag_sob_size + 8;;
   let float_sob_size = word_sob_size;;
@@ -238,8 +238,8 @@ module Code_Gen (* : CODE_GEN *) = struct
 
     and get_tuple_of_const_from_tbl = fun const const_tbl ->
       let eq = constant_eq const in
-        List.find 
-        (fun tuple -> 
+        List.find
+        (fun tuple ->
           let c = get_const_from_tuple tuple in
             eq c
         )
@@ -270,19 +270,19 @@ module Code_Gen (* : CODE_GEN *) = struct
         match sexpr with
         | Nil -> make_literal_nil_asm_code
         | Bool(bool) -> make_literal_bool_asm_code bool
-        | Number(number) -> 
+        | Number(number) ->
             make_asm_code_number_from_const_tbl number index
         | Char(ch) -> make_literal_char_asm_code ch
-        | String(string) -> 
+        | String(string) ->
             make_literal_string_asm_code string
-        | Symbol(string_symbol) -> 
+        | Symbol(string_symbol) ->
             make_asm_code_symbol_from_const_tbl string_symbol current_tuple_const_tbl
-        | Pair(car, cdr) -> 
+        | Pair(car, cdr) ->
             make_asm_code_pair_from_const_tbl car cdr current_tuple_const_tbl
       ) in
     build_consts_tbl_rec const_list [] 0;;
 
-  let init_const_list_for_const_tbl = 
+  let init_const_list_for_const_tbl =
     [
       Const'(Void);
       Const'(Sexpr(Nil));
@@ -291,12 +291,12 @@ module Code_Gen (* : CODE_GEN *) = struct
     ];;
 
   let build_const_tbl = fun expr'_list ->
-    let expr'_list = (init_const_list_for_const_tbl @ expr'_list) in 
+    let expr'_list = (init_const_list_for_const_tbl @ expr'_list) in
     let extracted_consts_list = extract_const_from_expr'_list expr'_list in
-    let extracted_consts_list = 
+    let extracted_consts_list =
       remove_dup_consts_from_const_list extracted_consts_list in
     let extended_consts_list = extend_const_list (extracted_consts_list) in
-    let extracted_consts_list = 
+    let extracted_consts_list =
       remove_dup_consts_from_const_list extended_consts_list in
     build_consts_tbl_from_const_list extracted_consts_list;;
 
@@ -314,7 +314,7 @@ module Code_Gen (* : CODE_GEN *) = struct
     ""
     const_tbl;;
 
-(* 
+(*
 ============== Free var table ==============
 *)
 
@@ -326,7 +326,7 @@ module Code_Gen (* : CODE_GEN *) = struct
   let rec extract_fvar_names_from_expr'_list = fun expr'_list ->
     List.fold_left
     (fun acc expr' ->
-      let extracted_fvars = extract_fvar_names_from_expr' expr' in 
+      let extracted_fvars = extract_fvar_names_from_expr' expr' in
         acc @ extracted_fvars
     )
     []
@@ -340,28 +340,28 @@ module Code_Gen (* : CODE_GEN *) = struct
   and extract_fvar_names_from_expr' = fun expr'  ->
     match expr' with
     | Const'(const) -> []
-    | Var'(var) -> extract_fvar_string var 
-    | Box'(var) -> extract_fvar_string var 
-    | BoxGet'(var) -> extract_fvar_string var 
-    | BoxSet'(var, expr') -> 
-        extract_fvar_names_from_var_and_expr'_list var [expr'] 
+    | Var'(var) -> extract_fvar_string var
+    | Box'(var) -> extract_fvar_string var
+    | BoxGet'(var) -> extract_fvar_string var
+    | BoxSet'(var, expr') ->
+        extract_fvar_names_from_var_and_expr'_list var [expr']
 
     | If'(test, dit, dif) ->
-        extract_fvar_names_from_expr'_list [test; dit; dif] 
+        extract_fvar_names_from_expr'_list [test; dit; dif]
 
     | Seq'(expr'_list) ->
-        extract_fvar_names_from_expr'_list expr'_list 
+        extract_fvar_names_from_expr'_list expr'_list
 
-    | Set'(var, expr') -> 
-        extract_fvar_names_from_var_and_expr'_list var [expr'] 
-    | Def'(var, expr') -> 
-        extract_fvar_names_from_var_and_expr'_list var [expr'] 
+    | Set'(var, expr') ->
+        extract_fvar_names_from_var_and_expr'_list var [expr']
+    | Def'(var, expr') ->
+        extract_fvar_names_from_var_and_expr'_list var [expr']
 
     | Or'(expr'_list) ->
-        extract_fvar_names_from_expr'_list expr'_list 
+        extract_fvar_names_from_expr'_list expr'_list
 
     | LambdaSimple'(arg_names, body_expr') ->
-        extract_fvar_names_from_expr' body_expr' 
+        extract_fvar_names_from_expr' body_expr'
     | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') ->
         extract_fvar_names_from_expr' body_expr'
 
@@ -378,7 +378,7 @@ module Code_Gen (* : CODE_GEN *) = struct
     "fold-right"; "gcd"; "integer?"; "integer->char"; "length";
     "list"; "list?"; "make-string"; "map"; "not"; "null?"; "number?";
     "numerator"; "pair?"; "procedure?"; "rational?"; "set-car!";
-    "set-cdr!"; "string->list"; "string-length"; "string-ref"; 
+    "set-cdr!"; "string->list"; "string-length"; "string-ref";
     "string-set!"; "string?"; "symbol?"; "zero?"; "symbol->string"
   ];;
 
@@ -393,13 +393,13 @@ module Code_Gen (* : CODE_GEN *) = struct
   let build_fvars_tbl = fun expr'_list ->
     let extracted_fvars_names = extract_fvar_names_from_expr'_list expr'_list in
     let fvars_names = reserved_fvar_list @ extracted_fvars_names in
-    let fvars_names = 
-      remove_dup_from_list 
+    let fvars_names =
+      remove_dup_from_list
       fvars_names
       (fun str1 str2 -> str1 = str2) in
     make_index_tuple_from_list fvars_names
 
-(* 
+(*
 ============== Code generation ==============
 *)
 
@@ -421,7 +421,7 @@ module Code_Gen (* : CODE_GEN *) = struct
     Printf.sprintf "mov %s, qword [%s]" reg from;;
 
   let mov_to_register_from_indirect = fun reg reg_indirect offset ->
-    let offset_from_rbp = 
+    let offset_from_rbp =
       Printf.sprintf "%s + %d*%d" reg_indirect word_size offset in
     mov_to_register_qword_indirect reg offset_from_rbp;;
 
@@ -453,7 +453,7 @@ module Code_Gen (* : CODE_GEN *) = struct
         code_adress in
 
     let generate_code_for_var_param = fun minor ->
-      mov_to_register_var_param rax_reg_str minor in 
+      mov_to_register_var_param rax_reg_str minor in
 
     let generate_code_for_var_bound = fun major minor ->
       let indirect_from_rax = mov_to_register_from_indirect rax_reg_str rax_reg_str in
@@ -477,9 +477,9 @@ module Code_Gen (* : CODE_GEN *) = struct
       match expr' with
       | Const'(const) -> generate_code_for_constant const
       | Var'(var) -> generate_code_for_var var
-      | Box'(var) -> raise X_not_yet_implemented 
+      | Box'(var) -> raise X_not_yet_implemented
       | BoxGet'(var) -> raise X_not_yet_implemented
-      | BoxSet'(var, expr') -> 
+      | BoxSet'(var, expr') ->
           raise X_not_yet_implemented
 
       | If'(test, dit, dif) ->
@@ -488,9 +488,9 @@ module Code_Gen (* : CODE_GEN *) = struct
       | Seq'(expr'_list) ->
          raise X_not_yet_implemented
 
-      | Set'(var, expr') -> 
+      | Set'(var, expr') ->
           raise X_not_yet_implemented
-      | Def'(var, expr') -> 
+      | Def'(var, expr') ->
           raise X_not_yet_implemented
 
       | Or'(expr'_list) ->
@@ -508,12 +508,12 @@ module Code_Gen (* : CODE_GEN *) = struct
     generate_code expr';;
 
   let make_consts_tbl = fun asts ->
-    build_const_tbl asts 
-  
-  let make_fvars_tbl asts = 
+    build_const_tbl asts
+
+  let make_fvars_tbl asts =
     build_fvars_tbl asts;;
 
-  let generate consts fvars e = 
+  let generate consts fvars e =
     generate_code_wrapper consts fvars e;;
 end;;
 

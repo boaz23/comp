@@ -14,7 +14,7 @@ let rec ormap f s =
 let rec andmap f s =
   match s with
   | [] -> true
-  | car :: cdr -> (f car) && (andmap f cdr);;	  
+  | car :: cdr -> (f car) && (andmap f cdr);;
 
 let lowercase_ascii  =
   let delta = int_of_char 'A' - int_of_char 'a' in
@@ -36,13 +36,13 @@ let list_to_string s =
 module PC = struct
 
 (* the parsing combinators defined here *)
-  
+
 exception X_not_yet_implemented;;
 
 exception X_no_match;;
 
 let const pred =
-  function 
+  function
   | [] -> raise X_no_match
   | e :: s ->
      if (pred e) then (e, s)
@@ -73,7 +73,7 @@ let disj nt1 nt2 =
   with X_no_match -> (nt2 s);;
 
 let nt_none _ = raise X_no_match;;
-  
+
 let disj_list nts = List.fold_right disj nts nt_none;;
 
 let delayed thunk s =
@@ -97,7 +97,7 @@ let guard nt pred s =
   let ((e, _) as result) = (nt s) in
   if (pred e) then result
   else raise X_no_match;;
-  
+
 let diff nt1 nt2 s =
   match (let result = nt1 s in
 	 try let _ = nt2 s in
@@ -113,7 +113,7 @@ let not_followed_by nt1 nt2 s =
 	 with X_no_match -> (Some(result))) with
   | None -> raise X_no_match
   | Some(result) -> result;;
-	  
+
 let maybe nt s =
   try let (e, s) = (nt s) in
       (Some(e), s)
@@ -130,7 +130,7 @@ let char_ci =
 	     (lowercase_ascii ch1) =
 	       (lowercase_ascii ch2));;
 
-let make_word char str = 
+let make_word char str =
   List.fold_right
     (fun nt1 nt2 -> pack (caten nt1 nt2) (fun (a, b) -> a :: b))
     (List.map char (string_to_list str))
