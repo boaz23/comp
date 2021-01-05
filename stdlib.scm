@@ -183,7 +183,7 @@
 		 ((and (flonum? x) (flonum? y)) (= x y))
 		 ((and (char? x) (char? y)) (= (char->integer x) (char->integer y)))
 		 ((and (pair? x) (pair? y))
-		  (equal?-loop (car x) (car y)) (equal?-loop (cdr x) (cdr y)))
+		  (and (equal?-loop (car x) (car y)) (equal?-loop (cdr x) (cdr y))))
 		 ((and (string? x) (string? y)) (equal?-loop (string->list x) (string->list y)))
 		 (else (eq? x y))))))
     equal?-loop)))
