@@ -308,8 +308,24 @@ module Prims : PRIMS = struct
       ] in
     String.concat "\n\n" (List.map (fun (a, b, c) -> (b c a)) misc_parts);;
 
+  let pair_procs =
+    let pair_getters =
+      let pair_getts_list = [
+        "car", "CAR";
+        "cdr", "CDR"
+      ] in
+      List.map (fun (name, getter) -> make_unary name (getter ^ " rax, rsi")) pair_getts_list in
+    let pair_setters =
+      let piar_setters_list = [
+        "set_car", "TYPE_SIZE";
+        "set_cdr", "TYPE_SIZE+WORD_SIZE";
+      ] in
+      List.map (fun (name, field_offset) -> make_binary name ("mov qword [rsi+" ^ field_offset ^ "], rdi")) piar_setters_list in
+    let cons = make_binary "cons" "  MAKE_PAIR(rax, rsi, rdi)" in
+    String.concat "\n\n" (List.flatten [pair_getters; pair_setters; [cons]]);;
+
   (* This is the interface of the module. It constructs a large x86 64-bit string using the routines
      defined above. The main compiler pipline code (in compiler.ml) calls into this module to get the
      string of primitive procedures. *)
-  let procs = String.concat "\n\n" [type_queries ; numeric_ops; misc_ops];;
+  let procs = String.concat "\n\n" [type_queries ; numeric_ops; misc_ops; pair_procs];;
 end;;
