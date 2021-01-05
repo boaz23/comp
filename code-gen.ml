@@ -388,7 +388,7 @@ module Code_Gen (* : CODE_GEN *) = struct
 
   let make_index_tuple_from_list = fun list ->
     List.mapi
-    (fun index item -> (item, index))
+    (fun index item -> (item, (index * 8)))
     list
 
   let build_fvars_tbl = fun expr'_list ->
