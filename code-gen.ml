@@ -302,7 +302,7 @@ module Code_Gen (* : CODE_GEN *) = struct
 
   let get_index_of_const_in_const_tbl = fun const const_tbl ->
     let const_tuple = List.assoc const const_tbl in
-      get_index_from_const_tuple const_tuple;;
+      fst const_tuple;;
 
   let generate_asm_code_from_const_tbl = fun const_tbl ->
     List.fold_left
@@ -375,7 +375,7 @@ module Code_Gen (* : CODE_GEN *) = struct
     "append"; "apply"; "boolean?"; "car"; "cdr";
     "char->integer"; "char?"; "cons"; "cons*"; "denominator";
     "eq?"; "equal?"; "exact->inexact"; "flonum?"; "fold-left";
-    "fold-right"; "gcd4"; "integer?"; "integer->char"; "length";
+    "fold-right"; "gcd"; "integer?"; "integer->char"; "length";
     "list"; "list?"; "make-string"; "map"; "not"; "null?"; "number?";
     "numerator"; "pair?"; "procedure?"; "rational?"; "set-car!";
     "set-cdr!"; "string->list"; "string-length"; "string-ref"; 
@@ -418,7 +418,7 @@ module Code_Gen (* : CODE_GEN *) = struct
   let generate_code_wrapper = fun consts_tbl fvars expr' ->
     let generate_code_for_constant = fun const ->
       let const_index = get_index_of_const_in_const_tbl const consts_tbl in
-      let const_code_address = const_table_label ^ "+" ^ const_index in
+      let const_code_address = const_table_label ^ "+" ^ (string_of_int const_index) in
         mov_to_register "rax" const_code_address in
 
     let generate_code = fun expr' ->
@@ -455,6 +455,7 @@ module Code_Gen (* : CODE_GEN *) = struct
           raise X_not_yet_implemented in
     generate_code expr';;
 
-  let generate consts fvars e = raise X_not_yet_implemented;;
+  let generate consts fvars e = 
+    generate_code_wrapper consts fvars e;;
 end;;
 
