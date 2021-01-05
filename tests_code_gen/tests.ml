@@ -177,7 +177,7 @@ let test_code_gen = fun expr' ->
    let fvars = Code_Gen.make_fvars_tbl [expr'] in
    let generate = Code_Gen.generate const_tbl fvars in
    let generated_code = generate expr' in
-   let e_message = Printf.sprintf "code:\n %s\n generate: %s\n" 
+   let e_message = Printf.sprintf "code:\n %s\ngenerate:\n%s\n" 
                      (expr'_to_string expr')
                         generated_code in
    print_string e_message
@@ -228,3 +228,8 @@ let print_code_gen_for_vars() =
    test_code_gen (Var'(VarFree("var")));
    test_code_gen (Var'(VarParam("var", 2)));
    test_code_gen (Var'(VarBound("var", 1, 2)));;
+
+let print_code_gen_for_set_vars() =
+   test_code_gen (Set'( (VarFree("var")), (Const'(Sexpr (Number (Fraction (1, 1)))))));
+   test_code_gen (Set'( (VarParam("var", 2)), (Const'(Sexpr (Number (Fraction (1, 1)))))));
+   test_code_gen (Set'( (VarBound("var", 1, 2)), (Const'(Sexpr (Number (Fraction (1, 1)))))));;
