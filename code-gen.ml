@@ -518,26 +518,29 @@ module Code_Gen (* : CODE_GEN *) = struct
     let generate_code_for_free_var = fun var_name ->
       let comment = Printf.sprintf ";Get VarFree(%s)" var_name in
       let code_adress = get_var_offset_code_from_fvars_tbl var_name fvars in
-      let var_code = mov_to_register_qword_indirect
-                     rax_reg_str
-                     code_adress in
-        concat_list_of_code [comment; var_code] in
+      concat_list_of_code 
+      [
+        comment; 
+        "mov rax, qword [" ^ code_adress ^ "]"
+      ] in
 
     let generate_code_for_var_param = fun minor ->
       let comment = Printf.sprintf ";Get VarParam(%d)" minor in
-      let var_code = mov_to_register_var_param rax_reg_str minor in
-        concat_list_of_code [comment; var_code] in
+      concat_list_of_code 
+      [
+        comment; 
+        "mov rax, PVAR(" ^ (string_of_int minor) ^ ")"
+      ] in
 
     let generate_code_for_var_bound = fun major minor ->
       let comment = Printf.sprintf ";Get VarBound(%d, %d)" major minor in
-      let indirect_from_rax = mov_to_register_from_indirect rax_reg_str rax_reg_str in
-        concat_list_of_code
-          [
-            comment;
-            get_lex_env_code rax_reg_str;
-            indirect_from_rax major;
-            indirect_from_rax minor
-          ] in
+      concat_list_of_code
+      [
+        comment;
+        "mov rax, ENV";
+        "mov rax, [rax + WORD_SIZE * " ^ (string_of_int major) ^ "]";
+        "mov rax, [rax + WORD_SIZE * " ^ (string_of_int minor) ^ "]"
+      ] in
 
     let generate_code_for_var = fun var ->
       match var with
