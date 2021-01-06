@@ -468,12 +468,16 @@ module Code_Gen (* : CODE_GEN *) = struct
 
   let if_else_indexer = ref(0);;
   let exit_indexer = ref(0);;
-  let else_label_of_if ()=
+  let else_label_of_if () =
     if_else_indexer := !if_else_indexer + 1;
     Printf.sprintf "Lelse%d" !if_else_indexer;;
-  let exit_label ()=
+  let exit_label () =
     exit_indexer := !exit_indexer + 1;
     Printf.sprintf "Lexit%d" !exit_indexer;;
+
+  let env_depth_ref = ref(-1);;
+  let inc_env_depth () =  env_depth_ref := !env_depth_ref + 1;;
+  let dec_env_depth () =  env_depth_ref := !env_depth_ref - 1;; 
 
   let var_to_string = fun var ->
     match var with
@@ -687,6 +691,16 @@ module Code_Gen (* : CODE_GEN *) = struct
       let generated_code = generate_code_for_set var expr' in
       concat_list_of_code [comment; generated_code]
 
+    and generate_code_for_lambda = fun lambda -> 
+      inc_env_depth ();
+      let generated_code = 
+        match lambda with
+        | LambdaSimple'(arg_names, body_expr') -> raise X_not_yet_implemented
+        | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> raise X_not_yet_implemented 
+        | _ -> raise X_syntax_error in
+      dec_env_depth ();
+      generated_code
+
     (*========== Generate code ==========*)
 
     and generate_code = fun expr' ->
@@ -707,8 +721,8 @@ module Code_Gen (* : CODE_GEN *) = struct
 
       | Or'(expr'_list) -> generate_code_for_or expr'_list
 
-      | LambdaSimple'(arg_names, body_expr') -> raise X_not_yet_implemented
-      | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> raise X_not_yet_implemented
+      | LambdaSimple'(arg_names, body_expr') -> generate_code_for_lambda expr'
+      | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> generate_code_for_lambda expr'
 
       | Applic'(operator_expr', operands_expr'_list) -> raise X_not_yet_implemented
       | ApplicTP'(operator_expr', operands_expr'_list) -> raise X_not_yet_implemented in
