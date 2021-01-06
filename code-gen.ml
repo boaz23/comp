@@ -507,7 +507,7 @@ module Code_Gen (* : CODE_GEN *) = struct
     let generate_code_for_constant = fun const ->
       let const_index = get_index_of_const_in_const_tbl const consts_tbl in
       let const_code_address = const_table_label ^ " + " ^ (string_of_int const_index) in
-        mov_to_register rax_reg_str const_code_address in
+        "mov rax, " ^ const_code_address in
 
     (*========== Vars get ==========*)
 
