@@ -1,3 +1,7 @@
+
+(define not
+  (lambda (x) (if x #f #t)))
+
 (define map
   (let ((null? null?)
 	(car car) (cdr cdr)
@@ -59,9 +63,19 @@
         (fold-right f acc (cons list1 lists_rest))))))
 
 (define cons*
-  #;(Add your implementation here
-     Note: The file won't compile like this, beacuase your tag-parser requires define to have a second expression.
-     This is on purpose, so you don't compile the library without completing this implementation by mistake.))
+  (let
+    ((null? null?)
+     (car car)
+     (cdr cdr)
+     (cons cons))
+    (letrec
+      ((cons*
+         (lambda (os)
+           (if (null? (cdr os))
+             (car os)
+             (cons (car os) (cons* (cdr os)))))))
+      (lambda (o1 . os_rest)
+        (cons* (cons o1 os_rest))))))
 
 (define append
   (let ((null? null?)
@@ -95,9 +109,6 @@
       (if (null? y)
 	  (make-string x #\nul)
 	  (make-string x (car y))))))
-
-(define not
-  (lambda (x) (if x #f #t)))
 
 (let ((flonum? flonum?) (rational? rational?)
       (exact->inexact exact->inexact)
