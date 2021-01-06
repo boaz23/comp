@@ -661,6 +661,11 @@ module Code_Gen (* : CODE_GEN *) = struct
         ret_void_code
       ]
 
+    and generate_code_for_def = fun var expr' ->
+      let comment = "; Define" in
+      let generated_code = generate_code_for_set var expr' in
+      concat_list_of_code [comment; generated_code]
+
     (*========== Generate code ==========*)
 
     and generate_code = fun expr' ->
@@ -681,7 +686,7 @@ module Code_Gen (* : CODE_GEN *) = struct
       | Set'(var, expr') -> 
           generate_code_for_set var expr'
       | Def'(var, expr') -> 
-          generate_code_for_set var expr'
+          generate_code_for_def var expr'
 
       | Or'(expr'_list) ->
           generate_code_for_or expr'_list
