@@ -54,6 +54,7 @@
 %define CLOSURE_CODE CDR
 
 %define ENV qword [rbp + WORD_SIZE*2]
+%define PARAMS_COUNT qword [rbp + WORD_SIZE*3]
 %define PVAR(n) qword [rbp+(4+n)*WORD_SIZE]
 %define PVAR_ADDR(r, n) lea r, [rbp+(4+n)*WORD_SIZE]
 
@@ -207,22 +208,24 @@
     %define %$length %5
     %define %$item_size WORD_SIZE
 
-    push %$arr1
-    push %$arr2
+    %if %$length
+        push %$arr1
+        push %$arr2
 
-    add %$arr1, %$item_size*%$start1
-    add %$arr2, %$item_size*%$start2
-    %rep %$length-1
-    push qword [%$arr1]
-    pop qword [%$arr2]
-    add %$arr1, %$item_size
-    add %$arr2, %$item_size
-    %endrep
-    push qword [%$arr1]
-    pop qword [%$arr2]
+        add %$arr1, %$item_size*%$start1
+        add %$arr2, %$item_size*%$start2
+        %rep %$length-1
+        push qword [%$arr1]
+        pop qword [%$arr2]
+        add %$arr1, %$item_size
+        add %$arr2, %$item_size
+        %endrep
+        push qword [%$arr1]
+        pop qword [%$arr2]
 
-    pop %$arr2
-    pop %$arr1
+        pop %$arr2
+        pop %$arr1
+    %endif
 %endmacro
 
 extern printf, malloc

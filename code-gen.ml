@@ -284,8 +284,8 @@ module Code_Gen (* : CODE_GEN *) = struct
 
   let init_const_list_for_const_tbl =
     [
-      Const'(Void);
       Const'(Sexpr(Nil));
+      Const'(Void);
       Const'(Sexpr(Bool(false)));
       Const'(Sexpr(Bool(true)));
     ];;
@@ -705,6 +705,8 @@ module Code_Gen (* : CODE_GEN *) = struct
       let generated_code = generate_code_for_set var expr' in
       concat_list_of_code [comment; generated_code]
 
+    (*========== Lambda ==========*)
+
     and generate_code_for_lambda = fun lambda -> 
       inc_env_depth ();
       let generated_code = 
@@ -744,6 +746,25 @@ module Code_Gen (* : CODE_GEN *) = struct
       ] in
       concat_list_of_code code
 
+    and generate_code_for_applic = fun operator_expr' operands_expr'_list ->
+      let push_args = 
+        List.fold_left
+        (fun acc expr' -> generate_code expr' :: "push rax" :: acc )
+        []
+        operands_expr'_list in
+      let rest_of_the_code = 
+      [
+        "push " ^ (string_of_int (List.length operands_expr'_list));
+        generate_code operator_expr';
+        "push qword [rax + TYPE_SIZE]";
+        "call [rax + TYPE_SIZE + WORD_SIZE]";
+        "add rsp, WORD_SIZE  ; pop env";
+        "pop rbx  ; pop args count";
+        "shl rbx, 3  ; rbx = rbx * 8";
+        "add rsp, rbx  ; pop args"
+      ] in
+      concat_list_of_code ([";Applic"] @ push_args @ rest_of_the_code)
+
     (*========== Generate code ==========*)
 
     and generate_code = fun expr' ->
@@ -767,7 +788,7 @@ module Code_Gen (* : CODE_GEN *) = struct
       | LambdaSimple'(arg_names, body_expr') -> generate_code_for_lambda expr'
       | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> generate_code_for_lambda expr'
 
-      | Applic'(operator_expr', operands_expr'_list) -> raise X_not_yet_implemented
+      | Applic'(operator_expr', operands_expr'_list) -> generate_code_for_applic operator_expr' operands_expr'_list
       | ApplicTP'(operator_expr', operands_expr'_list) -> raise X_not_yet_implemented in
     generate_code expr';;
 
