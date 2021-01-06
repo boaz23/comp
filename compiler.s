@@ -192,6 +192,37 @@
 %define CHAR_DOUBLEQUOTE 34
 %define CHAR_BACKSLASH 92
 
+; SIGNATURE: COPY_ARRAY_STATIC(arr1, start1, arr2, start2, length)
+;  arr1 and arr2 are registers
+;  start1, start2 and length are compile time constants
+; DESCRIPTION: copies <length> items of size WORD_SIZE from <arr1> starting at index <start1> to <arr2> starting at <start2>
+%macro COPY_ARRAY_STATIC 5
+    %push
+    %define %$arr1 %1
+    %define %$start1 %2
+    %define %$arr2 %3
+    %define %$start2 %4
+    %define %$length %5
+    %define %$item_size WORD_SIZE
+
+    push %$arr1
+    push %$arr2
+
+    add %$arr1, %$item_size*%$start1
+    add %$arr2, %$item_size*%$start2
+    %rep %$length-1
+    push qword [%$arr1]
+    pop qword [%$arr2]
+    add %$arr1, %$item_size
+    add %$arr2, %$item_size
+    %endrep
+    push qword [%$arr1]
+    pop qword [%$arr2]
+
+    pop %$arr2
+    pop %$arr1
+%endmacro
+
 extern printf, malloc
 global write_sob, write_sob_if_not_void
 
