@@ -475,9 +475,23 @@ module Code_Gen (* : CODE_GEN *) = struct
     exit_indexer := !exit_indexer + 1;
     Printf.sprintf "Lexit%d" !exit_indexer;;
 
+  let lambda_code_indexer = ref(0);;
+  let lcode_label () =
+    lambda_code_indexer := !lambda_code_indexer + 1;
+    Printf.sprintf "Lcode%d" !lambda_code_indexer;;
+
+  let lambda_code_cont_indexer = ref(0);;
+  let lcont_label () =
+    lambda_code_cont_indexer := !lambda_code_cont_indexer + 1;
+    Printf.sprintf "Lcont%d" !lambda_code_cont_indexer;;
+
   let env_depth_ref = ref(-1);;
   let inc_env_depth () =  env_depth_ref := !env_depth_ref + 1;;
   let dec_env_depth () =  env_depth_ref := !env_depth_ref - 1;; 
+
+  let enclosing_labmda_param_vars_ref = ref(0);;
+  let set_enclosing_labmda_param_vars_ref = fun value -> 
+    enclosing_labmda_param_vars_ref := value;;
 
   let var_to_string = fun var ->
     match var with
@@ -695,11 +709,40 @@ module Code_Gen (* : CODE_GEN *) = struct
       inc_env_depth ();
       let generated_code = 
         match lambda with
-        | LambdaSimple'(arg_names, body_expr') -> raise X_not_yet_implemented
+        | LambdaSimple'(arg_names, body_expr') -> 
+            generate_code_for_lambda_simple body_expr' (List.length arg_names)
         | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> raise X_not_yet_implemented 
         | _ -> raise X_syntax_error in
       dec_env_depth ();
       generated_code
+
+    and generate_code_for_lambda_simple = fun body_expr' number_of_args ->
+      let env_depth = !env_depth_ref in
+      let current_enclosing_labmda_param_vars = string_of_int !enclosing_labmda_param_vars_ref in
+      set_enclosing_labmda_param_vars_ref number_of_args;
+      let lcode_label_name = lcode_label () in
+      let lcont_label_name = lcont_label () in
+      let code = 
+      [
+        "; lambda simple depth " ^ (string_of_int env_depth);
+        "MALLOC rcx, WORD_SIZE*" ^ (string_of_int (env_depth+1));
+        "mov rbx, ENV";
+        "COPY_ARRAY_STATIC rbx, 0, rcx, 1, " ^ (string_of_int (env_depth));
+        "MALLOC rbx, WORD_SIZE*" ^ current_enclosing_labmda_param_vars;
+        "mov qword [rcx], rbx";
+        "PVAR_ADDR(rax, 0)";
+        "COPY_ARRAY_STATIC rax, 0, rbx, 0, " ^ current_enclosing_labmda_param_vars;
+        "MAKE_CLOSURE(rax, rcx, " ^ lcode_label_name ^ ")";
+        "jmp " ^ lcont_label_name;
+        lcode_label_name ^ ":";
+        "push rbp";
+        "mov rbp, rsp";
+        generate_code body_expr';
+        "leave";
+        "ret";
+        lcont_label_name ^ ":"
+      ] in
+      concat_list_of_code code
 
     (*========== Generate code ==========*)
 
