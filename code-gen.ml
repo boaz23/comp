@@ -487,10 +487,10 @@ module Code_Gen (* : CODE_GEN *) = struct
 
   let env_depth_ref = ref(-1);;
   let inc_env_depth () =  env_depth_ref := !env_depth_ref + 1;;
-  let dec_env_depth () =  env_depth_ref := !env_depth_ref - 1;; 
+  let dec_env_depth () =  env_depth_ref := !env_depth_ref - 1;;
 
   let enclosing_labmda_param_vars_ref = ref(0);;
-  let set_enclosing_labmda_param_vars_ref = fun value -> 
+  let set_enclosing_labmda_param_vars_ref = fun value ->
     enclosing_labmda_param_vars_ref := value;;
 
   let var_to_string = fun var ->
@@ -707,13 +707,13 @@ module Code_Gen (* : CODE_GEN *) = struct
 
     (*========== Lambda ==========*)
 
-    and generate_code_for_lambda = fun lambda -> 
+    and generate_code_for_lambda = fun lambda ->
       inc_env_depth ();
-      let generated_code = 
+      let generated_code =
         match lambda with
-        | LambdaSimple'(arg_names, body_expr') -> 
+        | LambdaSimple'(arg_names, body_expr') ->
             generate_code_for_lambda_simple body_expr' (List.length arg_names)
-        | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> raise X_not_yet_implemented 
+        | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> raise X_not_yet_implemented
         | _ -> raise X_syntax_error in
       dec_env_depth ();
       generated_code
@@ -724,7 +724,7 @@ module Code_Gen (* : CODE_GEN *) = struct
       set_enclosing_labmda_param_vars_ref number_of_args;
       let lcode_label_name = lcode_label () in
       let lcont_label_name = lcont_label () in
-      let code = 
+      let code =
       [
         "; lambda simple depth " ^ (string_of_int env_depth);
         "MALLOC rcx, WORD_SIZE*" ^ (string_of_int (env_depth+1));
@@ -746,24 +746,27 @@ module Code_Gen (* : CODE_GEN *) = struct
       ] in
       concat_list_of_code code
 
-    and generate_code_for_applic = fun operator_expr' operands_expr'_list ->
-      let push_args = 
+    and generate_code_for_applic_core = fun operator_expr' operands_expr'_list comment_code call_code ->
+      let push_args =
         List.fold_left
         (fun acc expr' -> generate_code expr' :: "push rax" :: acc )
         []
         operands_expr'_list in
-      let rest_of_the_code = 
+      let rest_of_the_code =
       [
         "push " ^ (string_of_int (List.length operands_expr'_list));
         generate_code operator_expr';
         "push qword [rax + TYPE_SIZE]";
-        "call [rax + TYPE_SIZE + WORD_SIZE]";
+        call_code;
         "add rsp, WORD_SIZE  ; pop env";
         "pop rbx  ; pop args count";
         "shl rbx, 3  ; rbx = rbx * 8";
         "add rsp, rbx  ; pop args"
       ] in
-      concat_list_of_code ([";Applic"] @ push_args @ rest_of_the_code)
+      concat_list_of_code ([comment_code] @ push_args @ rest_of_the_code)
+
+    and generate_code_for_applic = fun operator_expr' operands_expr'_list ->
+      generate_code_for_applic_core operator_expr' operands_expr'_list "; applic" "call [rax + TYPE_SIZE + WORD_SIZE]"
 
     (*========== Generate code ==========*)
 
