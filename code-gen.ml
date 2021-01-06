@@ -284,8 +284,8 @@ module Code_Gen (* : CODE_GEN *) = struct
 
   let init_const_list_for_const_tbl =
     [
-      Const'(Void);
       Const'(Sexpr(Nil));
+      Const'(Void);
       Const'(Sexpr(Bool(false)));
       Const'(Sexpr(Bool(true)));
     ];;
