@@ -1,9 +1,9 @@
 #use "code-gen.ml";;
 #use "prims.ml";;
 
-(* 
+(*
    Auxiliary function to load the contents of a file into a string in memory.
-   Note: exceptions are not handled here, and are expected to be handled 
+   Note: exceptions are not handled here, and are expected to be handled
    by the caller. We already took care of this in main code block below.
  *)
 let file_to_string f =
@@ -17,7 +17,7 @@ exception X_debug of string;;
 (* This procedure creates the assembly code to set up the runtime environment for the compiled
    Scheme code. *)
 let make_prologue consts_tbl fvars_tbl =
-  (* The table defines a mapping from the names of primitive procedures in scheme to their labels in 
+  (* The table defines a mapping from the names of primitive procedures in scheme to their labels in
      the assembly implementation. *)
   let primitive_names_to_labels =
   [
@@ -37,10 +37,12 @@ let make_prologue consts_tbl fvars_tbl =
     (* Additional rational numebr ops *)
     "numerator", "numerator"; "denominator", "denominator"; "gcd", "gcd";
     (* you can add yours here *)
+    (* Pair procedures *)
+    "car", "car"; "cdr", "cdr"; "set-car!", "set_car"; "set-cdr!", "set_cdr"; "cons", "cons"
   ] in
   let make_primitive_closure (prim, label) =
     (* This implementation assumes fvars are addressed by an offset from the label `fvar_tbl`.
-       If you use a different addressing scheme (e.g., a label for each fvar), change the 
+       If you use a different addressing scheme (e.g., a label for each fvar), change the
        addressing here to match. *)
     "MAKE_CLOSURE(rax, SOB_NIL_ADDRESS, " ^ label  ^ ")\n" ^
       "mov [fvar_tbl+" ^  (string_of_int (List.assoc prim fvars_tbl)) ^ "], rax" in
@@ -90,7 +92,7 @@ main:
     push 0                ; argument count
     push SOB_NIL_ADDRESS  ; lexical environment address
     push T_UNDEFINED      ; return address
-    push rbp                    
+    push rbp
     mov rbp, rsp                ; anchor the dummy frame
 
     ;; Set up the primitive stdlib fvars:
@@ -102,11 +104,11 @@ main:
 
 user_code_fragment:
 ;;; The code you compiled will be added here.
-;;; It will be executed immediately after the closures for 
+;;; It will be executed immediately after the closures for
 ;;; the primitive procedures are set up.\n";;
 
 let clean_exit =
-  ";;; Clean up the dummy frame, set the exit status to 0 (\"success\"), 
+  ";;; Clean up the dummy frame, set the exit status to 0 (\"success\"),
    ;;; and return from main
    pop rbp
    add rsp, 3*8
@@ -116,10 +118,10 @@ let clean_exit =
 
 exception X_missing_input_file;;
 
-(* 
+(*
    This is the bit that makes stuff happen. It will try to read a filename from the command line arguments
    and compile that file, along with the contents of stdlib.scm.
-   The result is printed to stduot. This implementation assumes the compiler user redirects the output to a 
+   The result is printed to stduot. This implementation assumes the compiler user redirects the output to a
    file (i.e. "ocaml compiler.ml some_file.scm > output.s").
    This assumption is already handled correctly in the provided makefile.
  *)
@@ -130,7 +132,7 @@ try
                               (Reader.read_sexprs s)) in
 
   (* get the filename to compile from the command line args *)
-  let infile = Sys.argv.(1) in  
+  let infile = Sys.argv.(1) in
 
   (* load the input file and stdlib *)
   let code = (file_to_string infile) in
@@ -143,16 +145,16 @@ try
   let consts_tbl = Code_Gen.make_consts_tbl asts in
 
   (* generate the fvars table *)
-  let fvars_tbl = Code_Gen.make_fvars_tbl asts in  
+  let fvars_tbl = Code_Gen.make_fvars_tbl asts in
 
   (* Generate assembly code for each ast and merge them all into a single string *)
-  let generate = Code_Gen.generate consts_tbl fvars_tbl in 
+  let generate = Code_Gen.generate consts_tbl fvars_tbl in
   let code_fragment = String.concat "\n\n"
                         (List.map
                            (fun ast -> (generate ast) ^ "\n\tcall write_sob_if_not_void")
                            asts) in
   (* merge everything into a single large string and print it out *)
-  print_string ((make_prologue consts_tbl fvars_tbl)  ^ 
+  print_string ((make_prologue consts_tbl fvars_tbl)  ^
                   code_fragment ^ clean_exit ^
                     "\n" ^ Prims.procs)
 

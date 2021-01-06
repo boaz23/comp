@@ -1,3 +1,7 @@
+
+(define not
+  (lambda (x) (if x #f #t)))
+
 (define map
   (let ((null? null?)
 	(car car) (cdr cdr)
@@ -19,20 +23,59 @@
       (map-many f args)))))
 
 
-(define fold-left 
-  #;(Add your implementation here
-     Note: The file won't compile like this, beacuase your tag-parser requires define to have a second expression.
-     This is on purpose, so you don't compile the library without completing this implementation by mistake.))
+(define fold-left
+  (let
+    ((null? null?)
+     (car car)
+     (cdr cdr)
+     (cons cons)
+     (map map)
+     (apply apply))
+    (letrec
+      ((fold-left
+         (lambda (f acc lists)
+           (if (null? (car lists))
+            acc
+            (fold-left
+              f
+              (apply f acc (map car lists))
+              (map cdr lists))))))
+      (lambda (f acc list1 . lists_rest)
+        (fold-left f acc (cons list1 lists_rest))))))
 
 (define fold-right
-  #;(Add your implementation here
-     Note: The file won't compile like this, beacuase your tag-parser requires define to have a second expression.
-     This is on purpose, so you don't compile the library without completing this implementation by mistake.))
+  (let
+    ((null? null?)
+     (car car)
+     (cdr cdr)
+     (cons cons)
+     (map map)
+     (apply apply))
+    (letrec
+      ((fold-right
+         (lambda (f acc lists)
+           (if (null? (car lists))
+            acc
+            (apply f
+              (map car lists)
+              (fold-right f (map cdr lists) acc))))))
+      (lambda (f acc list1 . lists_rest)
+        (fold-right f acc (cons list1 lists_rest))))))
 
 (define cons*
-  #;(Add your implementation here
-     Note: The file won't compile like this, beacuase your tag-parser requires define to have a second expression.
-     This is on purpose, so you don't compile the library without completing this implementation by mistake.))
+  (let
+    ((null? null?)
+     (car car)
+     (cdr cdr)
+     (cons cons))
+    (letrec
+      ((cons*
+         (lambda (os)
+           (if (null? (cdr os))
+             (car os)
+             (cons (car os) (cons* (cdr os)))))))
+      (lambda (o1 . os_rest)
+        (cons* (cons o1 os_rest))))))
 
 (define append
   (let ((null? null?)
@@ -48,7 +91,7 @@
 
 (define list (lambda x x))
 
-(define list? 
+(define list?
   (let ((null? null?)
 	(pair? pair?)
 	(cdr cdr))
@@ -66,9 +109,6 @@
       (if (null? y)
 	  (make-string x #\nul)
 	  (make-string x (car y))))))
-
-(define not
-  (lambda (x) (if x #f #t)))
 
 (let ((flonum? flonum?) (rational? rational?)
       (exact->inexact exact->inexact)
@@ -133,7 +173,7 @@
 	    0
 	    (gcd-loop (car x) (cdr x)))))))
 
-(define zero? 
+(define zero?
   (let ((= =))
     (lambda (x) (= x 0))))
 
