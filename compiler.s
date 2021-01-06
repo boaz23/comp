@@ -205,22 +205,24 @@
     %define %$length %5
     %define %$item_size WORD_SIZE
 
-    push %$arr1
-    push %$arr2
+    %if %$length
+        push %$arr1
+        push %$arr2
 
-    add %$arr1, %$item_size*%$start1
-    add %$arr2, %$item_size*%$start2
-    %rep %$length-1
-    push qword [%$arr1]
-    pop qword [%$arr2]
-    add %$arr1, %$item_size
-    add %$arr2, %$item_size
-    %endrep
-    push qword [%$arr1]
-    pop qword [%$arr2]
+        add %$arr1, %$item_size*%$start1
+        add %$arr2, %$item_size*%$start2
+        %rep %$length-1
+        push qword [%$arr1]
+        pop qword [%$arr2]
+        add %$arr1, %$item_size
+        add %$arr2, %$item_size
+        %endrep
+        push qword [%$arr1]
+        pop qword [%$arr2]
 
-    pop %$arr2
-    pop %$arr1
+        pop %$arr2
+        pop %$arr1
+    %endif
 %endmacro
 
 extern printf, malloc
