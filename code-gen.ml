@@ -729,11 +729,11 @@ module Code_Gen (* : CODE_GEN *) = struct
         "; lambda simple depth " ^ (string_of_int env_depth);
         "MALLOC rcx, WORD_SIZE*" ^ (string_of_int (env_depth+1));
         "mov rbx, ENV";
-        "COPY_ARRAY_STATIC rbx, 0, rcx, 1, " ^ (string_of_int (env_depth));
+        "COPY_ARRAY_STATIC rbx, 0, rcx, 1, " ^ (string_of_int (env_depth)) ^ ", rax";
         "MALLOC rbx, WORD_SIZE*" ^ current_enclosing_labmda_param_vars;
         "mov qword [rcx], rbx";
         "PVAR_ADDR(rax, 0)";
-        "COPY_ARRAY_STATIC rax, 0, rbx, 0, " ^ current_enclosing_labmda_param_vars;
+        "COPY_ARRAY_STATIC rax, 0, rbx, 0, " ^ current_enclosing_labmda_param_vars ^ ", rdx";
         "MAKE_CLOSURE(rax, rcx, " ^ lcode_label_name ^ ")";
         "jmp " ^ lcont_label_name;
         lcode_label_name ^ ":";
@@ -768,6 +768,23 @@ module Code_Gen (* : CODE_GEN *) = struct
     and generate_code_for_applic = fun operator_expr' operands_expr'_list ->
       generate_code_for_applic_core operator_expr' operands_expr'_list "; applic" "call [rax + TYPE_SIZE + WORD_SIZE]"
 
+    and generate_code_for_applictp = fun operator_expr' operands_expr'_list ->
+      let call_code =
+        let current_enclosing_labmda_param_vars = string_of_int !enclosing_labmda_param_vars_ref in
+        let old_frame_item_size = (List.length operands_expr'_list) + 4 in
+        let call_code_lines = [
+          "push RET_ADDR ; push old ret address";
+          "push OLD_RBP";
+          "lea rbx, [rbp - WORD_SIZE] ; set rbx to point the top of the new frame";
+          "lea rsp, [rbp + WORD_SIZE*(3 + " ^ current_enclosing_labmda_param_vars ^ ")] ; set rsp to point to the top of the old frame";
+          (* TODO: fix the macro for this specific use *)
+          "COPY_ARRAY_STATIC rbx, 0, rsp, 0, " ^ (string_of_int old_frame_item_size) ^ ", rcx, -1";
+          "jmp [rax + TYPE_SIZE + WORD_SIZE]"
+        ] in
+        concat_list_of_code call_code_lines in
+      generate_code_for_applic_core operator_expr' operands_expr'_list "; applic tp" call_code
+
+
     (*========== Generate code ==========*)
 
     and generate_code = fun expr' ->
@@ -792,7 +809,7 @@ module Code_Gen (* : CODE_GEN *) = struct
       | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> generate_code_for_lambda expr'
 
       | Applic'(operator_expr', operands_expr'_list) -> generate_code_for_applic operator_expr' operands_expr'_list
-      | ApplicTP'(operator_expr', operands_expr'_list) -> raise X_not_yet_implemented in
+      | ApplicTP'(operator_expr', operands_expr'_list) -> generate_code_for_applictp operator_expr' operands_expr'_list in
     generate_code expr';;
 
   let make_consts_tbl = fun asts ->

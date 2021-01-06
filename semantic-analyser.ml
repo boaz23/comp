@@ -524,7 +524,7 @@ let annotate_boxes_helper = fun e ->
 
 let annotate_lexical_addresses e = annotate_lexical_addresses_helper e;;
 
-let annotate_tail_calls e = (* annotate_tail_calls_helper *) e;;
+let annotate_tail_calls e = annotate_tail_calls_helper e;;
 
 let box_set e = annotate_boxes_helper e;;
 
