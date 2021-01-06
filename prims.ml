@@ -320,7 +320,7 @@ module Prims : PRIMS = struct
         "set_car", "TYPE_SIZE";
         "set_cdr", "TYPE_SIZE+WORD_SIZE";
       ] in
-      List.map (fun (name, field_offset) -> make_binary name ("mov qword [rsi+" ^ field_offset ^ "], rdi")) piar_setters_list in
+      List.map (fun (name, field_offset) -> make_binary name ("mov qword [rsi+" ^ field_offset ^ "], rdi\nmov rax, SOB_VOID_ADDRESS")) piar_setters_list in
     let cons = make_binary "cons" "  MAKE_PAIR(rax, rsi, rdi)" in
     String.concat "\n\n" (List.flatten [pair_getters; pair_setters; [cons]]);;
 
