@@ -54,6 +54,7 @@
 %define CLOSURE_CODE CDR
 
 %define ENV qword [rbp + WORD_SIZE*2]
+%define PARAMS_COUNT qword [rbp + WORD_SIZE*3]
 %define PVAR(n) qword [rbp+(4+n)*WORD_SIZE]
 %define PVAR_ADDR(r, n) lea r, [rbp+(4+n)*WORD_SIZE]
 
