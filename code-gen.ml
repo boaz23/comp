@@ -628,6 +628,8 @@ module Code_Gen (* : CODE_GEN *) = struct
         let code_list = code_list @ [exit_label_name ^ ":"] in
         concat_list_of_code (comment :: code_list)
 
+    (*========== Box get set ==========*)
+
     and generate_code_for_box_get = fun var ->
       let inner_comment_index = comment_index () in
       let var_string = var_to_string var in
@@ -661,6 +663,25 @@ module Code_Gen (* : CODE_GEN *) = struct
         ret_void_code
       ]
 
+    and generate_code_for_box = fun var ->
+      let inner_comment_index = comment_index () in
+      let var_string = var_to_string var in
+      let comment =  Printf.sprintf "; Box%s of %s" inner_comment_index var_string in
+      let make_var_code = generate_code_for_var var in
+      let mov_var_ptr_to_rbx = mov_to_register rbx_reg_str rax_reg_str in
+      let alloc_box_code = Printf.sprintf "MALLOC %s WORD_SIZE" rax_reg_str in
+      let set_var_ptr = mov_from_register_to_qword_indirect rax_reg_str rbx_reg_str in
+      concat_list_of_code
+      [
+        comment;
+        make_var_code;
+        mov_var_ptr_to_rbx;
+        alloc_box_code;
+        set_var_ptr
+      ]
+
+    (*========== Define ==========*)
+
     and generate_code_for_def = fun var expr' ->
       let comment = "; Define" in
       let generated_code = generate_code_for_set var expr' in
@@ -672,7 +693,7 @@ module Code_Gen (* : CODE_GEN *) = struct
       match expr' with
       | Const'(const) -> generate_code_for_constant const
       | Var'(var) -> generate_code_for_var var
-      | Box'(var) -> raise X_not_yet_implemented 
+      | Box'(var) -> generate_code_for_box var
       | BoxGet'(var) -> generate_code_for_box_get var
       | BoxSet'(var, expr') -> 
           generate_code_for_box_set var expr'
