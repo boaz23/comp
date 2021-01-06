@@ -475,6 +475,13 @@ module Code_Gen (* : CODE_GEN *) = struct
     exit_indexer := !exit_indexer + 1;
     Printf.sprintf "Lexit%d" !exit_indexer;;
 
+  let var_to_string = fun var ->
+    match var with
+    | VarFree(var_name) -> var_name
+    | VarParam(var_name, minor) -> Printf.sprintf "name: %s , minor %d" var_name minor
+    | VarBound (var_name, major, minor) ->
+       Printf.sprintf "name: %s , major %d, minor %d" var_name major minor;;
+
   let generate_code_wrapper = fun consts_tbl fvars expr' ->
 
     (*========== Const ==========*)
@@ -520,7 +527,7 @@ module Code_Gen (* : CODE_GEN *) = struct
       | VarParam(_, minor) -> generate_code_for_var_param minor
       | VarBound (_, major, minor) -> generate_code_for_var_bound major minor in
 
-    (*========== Vars get ==========*)
+    (*========== Vars set ==========*)
 
     let generate_code_for_free_var_set = fun var_name ->
       let comment = Printf.sprintf ";Set VarFree(%s)" var_name in
@@ -621,6 +628,39 @@ module Code_Gen (* : CODE_GEN *) = struct
         let code_list = code_list @ [exit_label_name ^ ":"] in
         concat_list_of_code (comment :: code_list)
 
+    and generate_code_for_box_get = fun var ->
+      let inner_comment_index = comment_index () in
+      let var_string = var_to_string var in
+      let comment = 
+        Printf.sprintf "; BoxGet%s of %s" inner_comment_index var_string in
+      let generated_code = generate_code_for_var var in
+      let mov_value_code = mov_to_register_qword_indirect rax_reg_str rax_reg_str in
+      concat_list_of_code
+      [
+        comment;
+        generated_code;
+        mov_value_code
+      ]
+
+    and generate_code_for_box_set = fun var expr' ->
+      let inner_comment_index = comment_index () in
+      let var_string = var_to_string var in
+      let comment = 
+        Printf.sprintf "; BoxSet%s of %s" inner_comment_index var_string in
+      let expr_generated_code = generate_code expr' in
+      let push_rax_code = Printf.sprintf "push %s" rax_reg_str in
+      let code_get_pointer = generate_code_for_var var in
+      let pop_to_rax_indirect_code = Printf.sprintf "pop qword [%s]" rax_reg_str in
+      concat_list_of_code
+      [
+        comment;
+        expr_generated_code;
+        push_rax_code;
+        code_get_pointer;
+        pop_to_rax_indirect_code;
+        ret_void_code
+      ]
+
     (*========== Generate code ==========*)
 
     and generate_code = fun expr' ->
@@ -628,9 +668,9 @@ module Code_Gen (* : CODE_GEN *) = struct
       | Const'(const) -> generate_code_for_constant const
       | Var'(var) -> generate_code_for_var var
       | Box'(var) -> raise X_not_yet_implemented 
-      | BoxGet'(var) -> raise X_not_yet_implemented
+      | BoxGet'(var) -> generate_code_for_box_get var
       | BoxSet'(var, expr') -> 
-          raise X_not_yet_implemented
+          generate_code_for_box_set var expr'
 
       | If'(test, dit, dif) ->
           generate_code_for_if test dit dif
@@ -641,7 +681,7 @@ module Code_Gen (* : CODE_GEN *) = struct
       | Set'(var, expr') -> 
           generate_code_for_set var expr'
       | Def'(var, expr') -> 
-          raise X_not_yet_implemented
+          generate_code_for_set var expr'
 
       | Or'(expr'_list) ->
           generate_code_for_or expr'_list
