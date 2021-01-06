@@ -1,0 +1,5 @@
+(or)
+(or #f)
+(or 1)
+(or #f #t)
+(or (if (begin 1 2) #f #t) 'hello)

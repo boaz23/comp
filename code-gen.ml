@@ -462,18 +462,18 @@ module Code_Gen (* : CODE_GEN *) = struct
     list;;
 
   let comment_indexer = ref(0);;
-  let comment_index = 
+  let comment_index () = 
     comment_indexer := !comment_indexer + 1;
     Printf.sprintf "%d" !comment_indexer;;
 
   let if_else_indexer = ref(0);;
-  let if_exit_indexer = ref(0);;
-  let else_label_of_if = 
+  let exit_indexer = ref(0);;
+  let else_label_of_if ()= 
     if_else_indexer := !if_else_indexer + 1;
     Printf.sprintf "Lelse%d" !if_else_indexer;;
-  let exit_label_of_if = 
-    if_exit_indexer := !if_exit_indexer + 1;
-    Printf.sprintf "Lexit%d" !if_exit_indexer;;
+  let exit_label ()= 
+    exit_indexer := !exit_indexer + 1;
+    Printf.sprintf "Lexit%d" !exit_indexer;;
 
   let generate_code_wrapper = fun consts_tbl fvars expr' ->
 
@@ -559,7 +559,7 @@ module Code_Gen (* : CODE_GEN *) = struct
     (*========== Sequence ==========*)
 
     and generate_code_for_sequence = fun expr'_list ->
-      let inner_comment_index = comment_index in
+      let inner_comment_index = comment_index () in
       let open_comment = "; Open sequence " ^ inner_comment_index in
       let close_comment = "; Close sequence " ^ inner_comment_index in
       let code_list = List.map generate_code expr'_list in
@@ -568,14 +568,14 @@ module Code_Gen (* : CODE_GEN *) = struct
     (*========== If ==========*)
 
     and generate_code_for_if = fun test dit dif ->
-      let inner_comment_index = comment_index in
+      let inner_comment_index = comment_index () in
       let test_comment = "; test " ^ inner_comment_index in
       let dit_comment = "; dit " ^ inner_comment_index in
       let tif_comment = "; dif " ^ inner_comment_index in
       let test_code = generate_code test in
       let cmp_test = Printf.sprintf "cmp %s, SOB_FALSE_ADDRESS" rax_reg_str in
-      let else_label_name = else_label_of_if in
-      let exit_label_name = exit_label_of_if in
+      let else_label_name = else_label_of_if () in
+      let exit_label_name = exit_label () in
       let jmp_if_false = Printf.sprintf "je %s" else_label_name in
       let dit_code = generate_code dit in
       let jmp_exit = Printf.sprintf "jmp %s" exit_label_name in
@@ -594,6 +594,32 @@ module Code_Gen (* : CODE_GEN *) = struct
         dif_code;
         (exit_label_name ^ ":")
       ]
+
+    (*========== Or ==========*)
+
+      and generate_code_for_or = fun expr'_list ->
+        let inner_comment_index = comment_index () in
+        let comment = "; Or " ^ inner_comment_index in
+        let cmp_test = Printf.sprintf "cmp %s, SOB_FALSE_ADDRESS" rax_reg_str in
+        let exit_label_name = exit_label () in 
+        let jmp_true_to_exit = Printf.sprintf "jne %s" exit_label_name in
+        let cmp_and_jmp_code = concat_list_of_code [cmp_test; jmp_true_to_exit] in
+        let cmp_and_jmp_code = cmp_and_jmp_code ^ "\n" in
+        let code_list = 
+          List.fold_right
+          (fun expr' acc ->
+            let generated_expr'_code = generate_code expr' in
+              [cmp_and_jmp_code; generated_expr'_code] @ acc
+          )
+          expr'_list 
+          []
+          in
+        let code_list = 
+          match code_list with
+          | [] -> [mov_from_register rax_reg_str "SOB_FALSE_ADDRESS"]
+          | _ :: rest -> rest in
+        let code_list = code_list @ [exit_label_name ^ ":"] in
+        concat_list_of_code (comment :: code_list)
 
     (*========== Generate code ==========*)
 
@@ -618,7 +644,7 @@ module Code_Gen (* : CODE_GEN *) = struct
           raise X_not_yet_implemented
 
       | Or'(expr'_list) ->
-          raise X_not_yet_implemented
+          generate_code_for_or expr'_list
 
       | LambdaSimple'(arg_names, body_expr') ->
           raise X_not_yet_implemented
