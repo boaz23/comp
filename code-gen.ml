@@ -552,26 +552,33 @@ module Code_Gen (* : CODE_GEN *) = struct
 
     let generate_code_for_free_var_set = fun var_name ->
       let comment = Printf.sprintf ";Set VarFree(%s)" var_name in
-      let var_adress = get_var_offset_code_from_fvars_tbl var_name fvars in
-      let set_code = mov_from_register_to_qword_indirect var_adress rax_reg_str in
-        concat_list_of_code [comment; set_code; ret_void_code] in
+      let var_address = get_var_offset_code_from_fvars_tbl var_name fvars in
+      concat_list_of_code 
+      [
+        comment; 
+        "mov qword [" ^ var_address ^ "], rax"; 
+        "RET_VOID"
+      ] in
 
     let generate_code_for_var_param_set = fun minor ->
       let comment = Printf.sprintf ";Set VarParam(%d)" minor in
-      let var_code = mov_to_register_var_param_set minor rax_reg_str in
-        concat_list_of_code [comment; var_code] in
+      concat_list_of_code 
+      [
+        comment; 
+        "mov PVAR(" ^ (string_of_int minor) ^ "), rax";
+        "RET_VOID"
+      ] in
 
     let generate_code_for_var_bound_set = fun major minor ->
       let comment = Printf.sprintf ";Set VarBound(%d, %d)" major minor in
-      let indirect_from_rbx = mov_to_register_from_indirect rbx_reg_str rbx_reg_str in
-        concat_list_of_code
-          [
-            comment;
-            get_lex_env_code rbx_reg_str;
-            indirect_from_rbx major;
-            mov_from_register_to_indirect rbx_reg_str minor rax_reg_str;
-            ret_void_code;
-          ] in
+      concat_list_of_code
+        [
+          comment;
+          "mov rbx, ENV";
+          "mov rbx, [rbx + WORD_SIZE * " ^ (string_of_int major) ^ "]";
+          "mov qword [rbx + WORD_SIZE * " ^ (string_of_int minor) ^ "], rax";
+          "RET_VOID"
+        ] in
 
     let generate_code_for_set_var = fun var ->
       match var with
