@@ -626,10 +626,13 @@ module Code_Gen (* : CODE_GEN *) = struct
       and generate_code_for_or = fun expr'_list ->
         let inner_comment_index = comment_index () in
         let comment = "; Or " ^ inner_comment_index in
-        let cmp_test = Printf.sprintf "cmp %s, SOB_FALSE_ADDRESS" rax_reg_str in
         let exit_label_name = exit_label () in
-        let jmp_true_to_exit = Printf.sprintf "jne %s" exit_label_name in
-        let cmp_and_jmp_code = concat_list_of_code [cmp_test; jmp_true_to_exit] in
+        let cmp_and_jmp_code = 
+          concat_list_of_code 
+          [
+            "cmp rax, SOB_FALSE_ADDRESS"; 
+            "jne " ^ exit_label_name; 
+          ] in
         let cmp_and_jmp_code = cmp_and_jmp_code ^ "\n" in
         let code_list =
           List.fold_right
@@ -642,7 +645,7 @@ module Code_Gen (* : CODE_GEN *) = struct
           in
         let code_list =
           match code_list with
-          | [] -> [mov_from_register rax_reg_str "SOB_FALSE_ADDRESS"]
+          | [] -> ["mov rax, SOB_FALSE_ADDRESS"]
           | _ :: rest -> rest in
         let code_list = code_list @ [exit_label_name ^ ":"] in
         concat_list_of_code (comment :: code_list)
