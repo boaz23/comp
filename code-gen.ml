@@ -413,48 +413,7 @@ module Code_Gen (* : CODE_GEN *) = struct
   let const_table_label = "const_tbl";;
   let fvar_tabel_label = "fvar_tbl";;
 
-  let mov_to_register = fun reg from ->
-    "mov " ^ reg ^ ", " ^ from;;
-
-  let mov_from_register = fun mov_to reg ->
-    "mov " ^ mov_to ^ ", " ^ reg;;
-
-  (*========== To register qword indirect ==========*)
-
-  let mov_to_register_qword_indirect = fun reg from ->
-    Printf.sprintf "mov %s, qword [%s]" reg from;;
-
-  let mov_to_register_from_indirect = fun reg reg_indirect offset ->
-    let offset_from_reg =
-      Printf.sprintf "%s + %d*%d" reg_indirect word_size offset in
-    mov_to_register_qword_indirect reg offset_from_reg;;
-
-  let mov_to_register_from_rbp = fun reg offset ->
-    mov_to_register_from_indirect reg rbp_reg_str offset;;
-
-  let mov_to_register_var_param = fun reg minor ->
-    mov_to_register_from_rbp reg (4 +  minor);;
-
-  let get_lex_env_code = fun reg ->
-    mov_to_register_from_rbp reg 2;;
-
-  (*========== To register qword indirect ==========*)
-  let mov_from_register_to_qword_indirect = fun to_address reg ->
-    Printf.sprintf "mov qword [%s], %s" to_address reg;;
-
-  let mov_from_register_to_indirect = fun mov_to offset from_reg ->
-    let offset_from_reg =
-      Printf.sprintf "%s + %d*%d" mov_to word_size offset in
-    mov_from_register_to_qword_indirect offset_from_reg from_reg;;
-
-  let mov_from_register_to_rbp_indirect = fun offset from ->
-    mov_from_register_to_indirect rbp_reg_str offset from;;
-
-  let mov_to_register_var_param_set = fun minor from ->
-    mov_from_register_to_rbp_indirect (4 +  minor) from;;
-
   (*========== General code ==========*)
-  let ret_void_code = mov_to_register rax_reg_str "SOB_VOID_ADDRESS";;
 
   let concat_list_of_code = fun list ->
     String.concat
