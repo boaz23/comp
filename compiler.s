@@ -229,6 +229,8 @@
     %endif
 %endmacro
 
+%define RET_VOID mov rax, SOB_VOID_ADDRESS
+
 extern printf, malloc
 global write_sob, write_sob_if_not_void
 

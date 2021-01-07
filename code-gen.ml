@@ -413,48 +413,7 @@ module Code_Gen (* : CODE_GEN *) = struct
   let const_table_label = "const_tbl";;
   let fvar_tabel_label = "fvar_tbl";;
 
-  let mov_to_register = fun reg from ->
-    "mov " ^ reg ^ ", " ^ from;;
-
-  let mov_from_register = fun mov_to reg ->
-    "mov " ^ mov_to ^ ", " ^ reg;;
-
-  (*========== To register qword indirect ==========*)
-
-  let mov_to_register_qword_indirect = fun reg from ->
-    Printf.sprintf "mov %s, qword [%s]" reg from;;
-
-  let mov_to_register_from_indirect = fun reg reg_indirect offset ->
-    let offset_from_reg =
-      Printf.sprintf "%s + %d*%d" reg_indirect word_size offset in
-    mov_to_register_qword_indirect reg offset_from_reg;;
-
-  let mov_to_register_from_rbp = fun reg offset ->
-    mov_to_register_from_indirect reg rbp_reg_str offset;;
-
-  let mov_to_register_var_param = fun reg minor ->
-    mov_to_register_from_rbp reg (4 +  minor);;
-
-  let get_lex_env_code = fun reg ->
-    mov_to_register_from_rbp reg 2;;
-
-  (*========== To register qword indirect ==========*)
-  let mov_from_register_to_qword_indirect = fun to_address reg ->
-    Printf.sprintf "mov qword [%s], %s" to_address reg;;
-
-  let mov_from_register_to_indirect = fun mov_to offset from_reg ->
-    let offset_from_reg =
-      Printf.sprintf "%s + %d*%d" mov_to word_size offset in
-    mov_from_register_to_qword_indirect offset_from_reg from_reg;;
-
-  let mov_from_register_to_rbp_indirect = fun offset from ->
-    mov_from_register_to_indirect rbp_reg_str offset from;;
-
-  let mov_to_register_var_param_set = fun minor from ->
-    mov_from_register_to_rbp_indirect (4 +  minor) from;;
-
   (*========== General code ==========*)
-  let ret_void_code = mov_to_register rax_reg_str "SOB_VOID_ADDRESS";;
 
   let concat_list_of_code = fun list ->
     String.concat
@@ -507,7 +466,7 @@ module Code_Gen (* : CODE_GEN *) = struct
     let generate_code_for_constant = fun const ->
       let const_index = get_index_of_const_in_const_tbl const consts_tbl in
       let const_code_address = const_table_label ^ " + " ^ (string_of_int const_index) in
-        mov_to_register rax_reg_str const_code_address in
+        "mov rax, " ^ const_code_address in
 
     (*========== Vars get ==========*)
 
@@ -518,26 +477,29 @@ module Code_Gen (* : CODE_GEN *) = struct
     let generate_code_for_free_var = fun var_name ->
       let comment = Printf.sprintf ";Get VarFree(%s)" var_name in
       let code_adress = get_var_offset_code_from_fvars_tbl var_name fvars in
-      let var_code = mov_to_register_qword_indirect
-                     rax_reg_str
-                     code_adress in
-        concat_list_of_code [comment; var_code] in
+      concat_list_of_code 
+      [
+        comment; 
+        "mov rax, qword [" ^ code_adress ^ "]"
+      ] in
 
     let generate_code_for_var_param = fun minor ->
       let comment = Printf.sprintf ";Get VarParam(%d)" minor in
-      let var_code = mov_to_register_var_param rax_reg_str minor in
-        concat_list_of_code [comment; var_code] in
+      concat_list_of_code 
+      [
+        comment; 
+        "mov rax, PVAR(" ^ (string_of_int minor) ^ ")"
+      ] in
 
     let generate_code_for_var_bound = fun major minor ->
       let comment = Printf.sprintf ";Get VarBound(%d, %d)" major minor in
-      let indirect_from_rax = mov_to_register_from_indirect rax_reg_str rax_reg_str in
-        concat_list_of_code
-          [
-            comment;
-            get_lex_env_code rax_reg_str;
-            indirect_from_rax major;
-            indirect_from_rax minor
-          ] in
+      concat_list_of_code
+      [
+        comment;
+        "mov rax, ENV";
+        "mov rax, [rax + WORD_SIZE * " ^ (string_of_int major) ^ "]";
+        "mov rax, [rax + WORD_SIZE * " ^ (string_of_int minor) ^ "]"
+      ] in
 
     let generate_code_for_var = fun var ->
       match var with
@@ -549,26 +511,33 @@ module Code_Gen (* : CODE_GEN *) = struct
 
     let generate_code_for_free_var_set = fun var_name ->
       let comment = Printf.sprintf ";Set VarFree(%s)" var_name in
-      let var_adress = get_var_offset_code_from_fvars_tbl var_name fvars in
-      let set_code = mov_from_register_to_qword_indirect var_adress rax_reg_str in
-        concat_list_of_code [comment; set_code; ret_void_code] in
+      let var_address = get_var_offset_code_from_fvars_tbl var_name fvars in
+      concat_list_of_code 
+      [
+        comment; 
+        "mov qword [" ^ var_address ^ "], rax"; 
+        "RET_VOID"
+      ] in
 
     let generate_code_for_var_param_set = fun minor ->
       let comment = Printf.sprintf ";Set VarParam(%d)" minor in
-      let var_code = mov_to_register_var_param_set minor rax_reg_str in
-        concat_list_of_code [comment; var_code] in
+      concat_list_of_code 
+      [
+        comment; 
+        "mov PVAR(" ^ (string_of_int minor) ^ "), rax";
+        "RET_VOID"
+      ] in
 
     let generate_code_for_var_bound_set = fun major minor ->
       let comment = Printf.sprintf ";Set VarBound(%d, %d)" major minor in
-      let indirect_from_rbx = mov_to_register_from_indirect rbx_reg_str rbx_reg_str in
-        concat_list_of_code
-          [
-            comment;
-            get_lex_env_code rbx_reg_str;
-            indirect_from_rbx major;
-            mov_from_register_to_indirect rbx_reg_str minor rax_reg_str;
-            ret_void_code;
-          ] in
+      concat_list_of_code
+        [
+          comment;
+          "mov rbx, ENV";
+          "mov rbx, [rbx + WORD_SIZE * " ^ (string_of_int major) ^ "]";
+          "mov qword [rbx + WORD_SIZE * " ^ (string_of_int minor) ^ "], rax";
+          "RET_VOID"
+        ] in
 
     let generate_code_for_set_var = fun var ->
       match var with
@@ -594,29 +563,20 @@ module Code_Gen (* : CODE_GEN *) = struct
 
     and generate_code_for_if = fun test dit dif ->
       let inner_comment_index = comment_index () in
-      let test_comment = "; test " ^ inner_comment_index in
-      let dit_comment = "; dit " ^ inner_comment_index in
-      let tif_comment = "; dif " ^ inner_comment_index in
-      let test_code = generate_code test in
-      let cmp_test = Printf.sprintf "cmp %s, SOB_FALSE_ADDRESS" rax_reg_str in
       let else_label_name = else_label_of_if () in
       let exit_label_name = exit_label () in
-      let jmp_if_false = Printf.sprintf "je %s" else_label_name in
-      let dit_code = generate_code dit in
-      let jmp_exit = Printf.sprintf "jmp %s" exit_label_name in
-      let dif_code = generate_code dif in
       concat_list_of_code
       [
-        test_comment;
-        test_code;
-        cmp_test;
-        jmp_if_false;
-        dit_comment;
-        dit_code;
-        jmp_exit;
+        "; test " ^ inner_comment_index;
+        generate_code test;
+        "cmp rax, SOB_FALSE_ADDRESS";
+        "je " ^ else_label_name;
+        "; dit " ^ inner_comment_index;
+        generate_code dit;
+        "jmp " ^ exit_label_name;
         (else_label_name ^ ":");
-        tif_comment;
-        dif_code;
+        "; dif " ^ inner_comment_index;
+        generate_code dif;
         (exit_label_name ^ ":")
       ]
 
@@ -625,10 +585,13 @@ module Code_Gen (* : CODE_GEN *) = struct
       and generate_code_for_or = fun expr'_list ->
         let inner_comment_index = comment_index () in
         let comment = "; Or " ^ inner_comment_index in
-        let cmp_test = Printf.sprintf "cmp %s, SOB_FALSE_ADDRESS" rax_reg_str in
         let exit_label_name = exit_label () in
-        let jmp_true_to_exit = Printf.sprintf "jne %s" exit_label_name in
-        let cmp_and_jmp_code = concat_list_of_code [cmp_test; jmp_true_to_exit] in
+        let cmp_and_jmp_code = 
+          concat_list_of_code 
+          [
+            "cmp rax, SOB_FALSE_ADDRESS"; 
+            "jne " ^ exit_label_name; 
+          ] in
         let cmp_and_jmp_code = cmp_and_jmp_code ^ "\n" in
         let code_list =
           List.fold_right
@@ -641,7 +604,7 @@ module Code_Gen (* : CODE_GEN *) = struct
           in
         let code_list =
           match code_list with
-          | [] -> [mov_from_register rax_reg_str "SOB_FALSE_ADDRESS"]
+          | [] -> ["mov rax, SOB_FALSE_ADDRESS"]
           | _ :: rest -> rest in
         let code_list = code_list @ [exit_label_name ^ ":"] in
         concat_list_of_code (comment :: code_list)
@@ -650,60 +613,40 @@ module Code_Gen (* : CODE_GEN *) = struct
 
     and generate_code_for_box_get = fun var ->
       let inner_comment_index = comment_index () in
-      let var_string = var_to_string var in
-      let comment =
-        Printf.sprintf "; BoxGet%s of %s" inner_comment_index var_string in
-      let generated_code = generate_code_for_var var in
-      let mov_value_code = mov_to_register_qword_indirect rax_reg_str rax_reg_str in
       concat_list_of_code
       [
-        comment;
-        generated_code;
-        mov_value_code
+        "; BoxGet" ^ inner_comment_index ^ " of " ^  (var_to_string var);
+        generate_code_for_var var;
+        "mov rax, qword [rax]"
       ]
 
     and generate_code_for_box_set = fun var expr' ->
       let inner_comment_index = comment_index () in
-      let var_string = var_to_string var in
-      let comment =
-        Printf.sprintf "; BoxSet%s of %s" inner_comment_index var_string in
-      let expr_generated_code = generate_code expr' in
-      let push_rax_code = Printf.sprintf "push %s" rax_reg_str in
-      let code_get_pointer = generate_code_for_var var in
-      let pop_to_rax_indirect_code = Printf.sprintf "pop qword [%s]" rax_reg_str in
       concat_list_of_code
       [
-        comment;
-        expr_generated_code;
-        push_rax_code;
-        code_get_pointer;
-        pop_to_rax_indirect_code;
-        ret_void_code
+        "; BoxSet" ^ inner_comment_index ^ " of " ^  (var_to_string var);
+        generate_code expr';
+         "push rax";
+        generate_code_for_var var;
+        "pop qword [rax]";
+        "RET_VOID"
       ]
 
     and generate_code_for_box = fun var ->
       let inner_comment_index = comment_index () in
-      let var_string = var_to_string var in
-      let comment =  Printf.sprintf "; Box%s of %s" inner_comment_index var_string in
-      let make_var_code = generate_code_for_var var in
-      let mov_var_ptr_to_rbx = mov_to_register rbx_reg_str rax_reg_str in
-      let alloc_box_code = Printf.sprintf "MALLOC %s WORD_SIZE" rax_reg_str in
-      let set_var_ptr = mov_from_register_to_qword_indirect rax_reg_str rbx_reg_str in
       concat_list_of_code
       [
-        comment;
-        make_var_code;
-        mov_var_ptr_to_rbx;
-        alloc_box_code;
-        set_var_ptr
+        "; Box" ^ inner_comment_index ^ " of " ^  (var_to_string var);
+        generate_code_for_var var;
+        "mov rbx, rax";
+        "MALLOC rax WORD_SIZE";
+        "mov qword [rax], rbx"
       ]
 
     (*========== Define ==========*)
 
     and generate_code_for_def = fun var expr' ->
-      let comment = "; Define" in
-      let generated_code = generate_code_for_set var expr' in
-      concat_list_of_code [comment; generated_code]
+      concat_list_of_code ["; Define"; generate_code_for_set var expr']
 
     (*========== Lambda ==========*)
 
