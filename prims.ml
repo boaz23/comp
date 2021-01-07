@@ -324,8 +324,84 @@ module Prims : PRIMS = struct
     let cons = make_binary "cons" "  MAKE_PAIR(rax, rsi, rdi)" in
     String.concat "\n\n" (List.flatten [pair_getters; pair_setters; [cons]]);;
 
+  let apply_proc = "
+apply:
+push rbp
+mov rbp, rsp
+push RBP
+push RET_ADDR
+push ENV
+sub rsp, WORD_SIZE ;save space for the arguments count
+
+mov r8, PARAMS_COUNT
+
+; push the normal arguments from first to last (pvar(1) to pvar(PARAMS_COUNT - 2))
+mov rbx, PARAMS_COUNT
+sub rbx, 2
+PVAR_ADDR(rsi, 1)
+.loop_push_args:
+    cmp rbx, 0
+    je .loop_push_args_end
+
+    push qword [rsi]
+
+    dec rbx
+    add rsi, WORD_SIZE
+    jmp .loop_push_args
+.loop_push_args_end:
+
+; push the arguments in the list
+mov rbx, PARAMS_COUNT
+dec rbx
+mov rbx, PVAR(rbx)
+.loop_push_list_args:
+  cmp rbx, SOB_NIL_ADDRESS
+  je .loop_push_list_args_end
+
+  push qword [rbx+TYPE_SIZE]
+
+  CDR rbx, rbx
+  jmp .loop_push_list_args
+.loop_push_list_args_end:
+
+mov rcx, rsp
+lea rbx, [rbp-WORD_SIZE]
+.loop_reverse:
+    cmp rbx, rcx
+    jbe .loop_reverse_end
+
+    mov rsi, qword [rbx]
+    mov rdi, qword [rcx]
+    mov qword [rcx], rsi
+    mov qword [rbx], rdi
+
+    sub rbx, WORD_SIZE
+    add rcx, WORD_SIZE
+    jmp .loop_reverse
+.loop_reverse_end:
+
+lea rdi, [rbp-WORD_SIZE]
+mov rsi, PARAMS_COUNT
+lea rsi, [rbp+rsi*WORD_SIZE+3*WORD_SIZE]
+mov rdx, rbp
+sub rdx, rsp
+shr rdx, 3
+
+lea r9, [rdx-4] ;number of arguments to f
+mov [rbp-4*WORD_SIZE], r9 ;set the current number of arguments to f on the new frame
+
+call copy_array_backward ;override the old frame with the new frame
+
+mov r10, r8
+sub r10, r9
+inc r10
+lea rsp, [rbp+WORD_SIZE*r10] ;setup the stack pointer for the new function. it point to the return address right now
+mov rbp, [rsp - WORD_SIZE] ;restore the old RBP pointer
+jmp [rax + TYPE_SIZE + WORD_SIZE]
+"
+
   (* This is the interface of the module. It constructs a large x86 64-bit string using the routines
      defined above. The main compiler pipline code (in compiler.ml) calls into this module to get the
      string of primitive procedures. *)
-  let procs = String.concat "\n\n" [type_queries ; numeric_ops; misc_ops; pair_procs];;
+  let procs = String.concat "\n\n" [type_queries ; numeric_ops; misc_ops; pair_procs; apply_proc];;
 end;;

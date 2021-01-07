@@ -53,12 +53,12 @@
 
 %define CLOSURE_CODE CDR
 
+%define PVAR_ADDR(r, n) lea r, [rbp+(4+n)*WORD_SIZE]
+%define PVAR(n) qword [rbp+(4+n)*WORD_SIZE]
+%define PARAMS_COUNT qword [rbp + WORD_SIZE*3]
 %define ENV qword [rbp + WORD_SIZE*2]
 %define RET_ADDR qword [rbp + WORD_SIZE]
 %define OLD_RBP qword [rbp]
-%define PARAMS_COUNT qword [rbp + WORD_SIZE*3]
-%define PVAR(n) qword [rbp+(4+n)*WORD_SIZE]
-%define PVAR_ADDR(r, n) lea r, [rbp+(4+n)*WORD_SIZE]
 
 ; returns %2 allocated bytes in register %1
 ; Supports using with %1 = %2
@@ -231,6 +231,50 @@
 %endmacro
 
 %define RET_VOID mov rax, SOB_VOID_ADDRESS
+
+; copy_array_forward(src, dest, len)
+copy_array_forward:
+    %push
+    %define %$src rdi
+    %define %$dest rsi
+    %define %$len rdx
+
+    mov rcx, 0
+    .loop:
+        cmp %$len, 0
+        je .loop_end
+
+        mov rbx, qword [%$src+rcx*WORD_SIZE]
+        mov qword [%$dest+rcx*WORD_SIZE], rbx
+
+        inc rcx
+        dec %$len
+    .loop_end:
+    ret
+
+    %pop
+
+; copy_array_forward(src, dest, len)
+copy_array_backward:
+    %push
+    %define %$src rdi
+    %define %$dest rsi
+    %define %$len rdx
+
+    mov rcx, 0
+    .loop:
+        cmp %$len, 0
+        je .loop_end
+
+        mov rbx, qword [%$src+rcx*WORD_SIZE]
+        mov qword [%$dest+rcx*WORD_SIZE], rbx
+
+        dec rcx
+        dec %$len
+    .loop_end:
+    ret
+
+    %pop
 
 extern printf, malloc
 global write_sob, write_sob_if_not_void
