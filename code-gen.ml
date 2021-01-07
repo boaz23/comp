@@ -477,17 +477,17 @@ module Code_Gen (* : CODE_GEN *) = struct
     let generate_code_for_free_var = fun var_name ->
       let comment = Printf.sprintf ";Get VarFree(%s)" var_name in
       let code_adress = get_var_offset_code_from_fvars_tbl var_name fvars in
-      concat_list_of_code 
+      concat_list_of_code
       [
-        comment; 
+        comment;
         "mov rax, qword [" ^ code_adress ^ "]"
       ] in
 
     let generate_code_for_var_param = fun minor ->
       let comment = Printf.sprintf ";Get VarParam(%d)" minor in
-      concat_list_of_code 
+      concat_list_of_code
       [
-        comment; 
+        comment;
         "mov rax, PVAR(" ^ (string_of_int minor) ^ ")"
       ] in
 
@@ -512,18 +512,18 @@ module Code_Gen (* : CODE_GEN *) = struct
     let generate_code_for_free_var_set = fun var_name ->
       let comment = Printf.sprintf ";Set VarFree(%s)" var_name in
       let var_address = get_var_offset_code_from_fvars_tbl var_name fvars in
-      concat_list_of_code 
+      concat_list_of_code
       [
-        comment; 
-        "mov qword [" ^ var_address ^ "], rax"; 
+        comment;
+        "mov qword [" ^ var_address ^ "], rax";
         "RET_VOID"
       ] in
 
     let generate_code_for_var_param_set = fun minor ->
       let comment = Printf.sprintf ";Set VarParam(%d)" minor in
-      concat_list_of_code 
+      concat_list_of_code
       [
-        comment; 
+        comment;
         "mov PVAR(" ^ (string_of_int minor) ^ "), rax";
         "RET_VOID"
       ] in
@@ -586,11 +586,11 @@ module Code_Gen (* : CODE_GEN *) = struct
         let inner_comment_index = comment_index () in
         let comment = "; Or " ^ inner_comment_index in
         let exit_label_name = exit_label () in
-        let cmp_and_jmp_code = 
-          concat_list_of_code 
+        let cmp_and_jmp_code =
+          concat_list_of_code
           [
-            "cmp rax, SOB_FALSE_ADDRESS"; 
-            "jne " ^ exit_label_name; 
+            "cmp rax, SOB_FALSE_ADDRESS";
+            "jne " ^ exit_label_name;
           ] in
         let cmp_and_jmp_code = cmp_and_jmp_code ^ "\n" in
         let code_list =
