@@ -227,6 +227,7 @@
         mov %$temp_reg, qword [%$src+%$i*%$step1*WORD_SIZE]
         mov qword [%$dest+%$j*%$step2*WORD_SIZE], %$temp_reg
     %endif
+    %pop
 %endmacro
 
 %define RET_VOID mov rax, SOB_VOID_ADDRESS
