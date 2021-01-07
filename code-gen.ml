@@ -687,9 +687,7 @@ module Code_Gen (* : CODE_GEN *) = struct
     (*========== Define ==========*)
 
     and generate_code_for_def = fun var expr' ->
-      let comment = "; Define" in
-      let generated_code = generate_code_for_set var expr' in
-      concat_list_of_code [comment; generated_code]
+      concat_list_of_code ["; Define"; generate_code_for_set var expr']
 
     (*========== Lambda ==========*)
 
