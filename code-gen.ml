@@ -729,11 +729,11 @@ module Code_Gen (* : CODE_GEN *) = struct
         "; lambda simple depth " ^ (string_of_int env_depth);
         "MALLOC rcx, WORD_SIZE*" ^ (string_of_int (env_depth+1));
         "mov rbx, ENV";
-        "COPY_ARRAY_STATIC rbx, 0, rcx, 1, " ^ (string_of_int (env_depth)) ^ ", rax";
+        "COPY_ARRAY_STATIC rbx, rcx, " ^ (string_of_int (env_depth)) ^ ", rax, 0, 1";
         "MALLOC rbx, WORD_SIZE*" ^ current_enclosing_labmda_param_vars;
         "mov qword [rcx], rbx";
         "PVAR_ADDR(rax, 0)";
-        "COPY_ARRAY_STATIC rax, 0, rbx, 0, " ^ current_enclosing_labmda_param_vars ^ ", rdx";
+        "COPY_ARRAY_STATIC rax, rbx, " ^ current_enclosing_labmda_param_vars ^ ", rdx";
         "MAKE_CLOSURE(rax, rcx, " ^ lcode_label_name ^ ")";
         "jmp " ^ lcont_label_name;
         lcode_label_name ^ ":";

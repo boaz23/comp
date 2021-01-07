@@ -197,40 +197,38 @@
 %define CHAR_DOUBLEQUOTE 34
 %define CHAR_BACKSLASH 92
 
-; SIGNATURE: COPY_ARRAY_STATIC(src, start1, dest, start2, length, temp_register, step)
+; SIGNATURE: COPY_ARRAY_STATIC(src, dest, length, temp_register, start1, start2, step1, step2)
 ;  src and dest are registers
-;  start1, start2 and length are compile time constants
-;  step is the amount of items advanced after each iteration
 ;  temp_register is a register used for temporary movement between the two memory locations
-;  item_size is assumed to be 8
+;  step1 and step2 is the amount of items advanced after each iteration
 ; DESCRIPTION: copies <length> items of size WORD_SIZE from <src> starting at index <start1> to <dest> starting at <start2>
-%macro COPY_ARRAY_STATIC 6-7 1
+; NOTE:
+;  * the size of each item in the arrays is assumed to be 8
+;  * start1, start2 and length are compile time constants
+%macro COPY_ARRAY_STATIC 4-8 0 0 1 1
     %push
     %define %$src %1
-    %define %$start1 %2
-    %define %$dest %3
-    %define %$start2 %4
-    %define %$length %5
-    %define %$temp_reg %6
-    %define %$step WORD_SIZE*%7
+    %define %$start1 %5
+    %define %$step1 WORD_SIZE*%7
+
+    %define %$dest %2
+    %define %$start2 %6
+    %define %$step1 WORD_SIZE*%8
+
+    %define %$length %3
+    %define %$temp_reg %4
 
     %if %$length
-        push %$src
-        push %$dest
-
-        add %$src, %$step*%$start1
-        add %$dest, %$step*%$start2
+        %assign %$i %$step1*%$start1
+        %assign %$j %$step2*%$start2
         %rep %$length-1
-        mov %$temp_reg, qword [%$src]
-        mov qword [%$dest], %$temp_reg
-        add %$src, %$step
-        add %$dest, %$step
+        mov %$temp_reg, qword [%$src+%$i]
+        mov qword [%$dest+%$j], %$temp_reg
+        %assign %$i %$i+%$step1
+        %assign %$j %$j+%$step2
         %endrep
-        mov %$temp_reg, qword [%$src]
-        mov qword [%$dest], %$temp_reg
-
-        pop %$dest
-        pop %$src
+        mov %$temp_reg, qword [%$src+%$i]
+        mov qword [%$dest+%$j], %$temp_reg
     %endif
 %endmacro
 
