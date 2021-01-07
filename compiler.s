@@ -239,6 +239,10 @@ copy_array_forward:
     %define %$dest rsi
     %define %$len rdx
 
+    push rcx
+    push %$len
+    push rbx
+
     mov rcx, 0
     .loop:
         cmp %$len, 0
@@ -249,9 +253,13 @@ copy_array_forward:
 
         inc rcx
         dec %$len
+        jmp .loop
     .loop_end:
-    ret
 
+    pop rbx
+    pop %$len
+    pop rcx
+    ret
     %pop
 
 ; copy_array_forward(src, dest, len)
@@ -260,6 +268,10 @@ copy_array_backward:
     %define %$src rdi
     %define %$dest rsi
     %define %$len rdx
+
+    push rcx
+    push %$len
+    push rbx
 
     mov rcx, 0
     .loop:
@@ -271,9 +283,13 @@ copy_array_backward:
 
         dec rcx
         dec %$len
+        jmp .loop
     .loop_end:
-    ret
 
+    pop rbx
+    pop %$len
+    pop rcx
+    ret
     %pop
 
 extern printf, malloc

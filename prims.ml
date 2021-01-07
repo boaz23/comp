@@ -328,12 +328,13 @@ module Prims : PRIMS = struct
 apply:
 push rbp
 mov rbp, rsp
-push RBP
+push OLD_RBP
 push RET_ADDR
 push ENV
 sub rsp, WORD_SIZE ;save space for the arguments count
 
 mov r8, PARAMS_COUNT
+mov r11, PVAR(0)
 
 ; push the normal arguments from first to last (pvar(1) to pvar(PARAMS_COUNT - 2))
 mov rbx, PARAMS_COUNT
@@ -364,6 +365,14 @@ mov rbx, PVAR(rbx)
   jmp .loop_push_list_args
 .loop_push_list_args_end:
 
+; new frame size
+mov rdx, rbp
+sub rdx, rsp
+shr rdx, 3
+
+lea r9, [rdx-4] ;number of arguments to f
+mov [rbp-4*WORD_SIZE], r9 ;set the current number of arguments to f on the new frame
+
 mov rcx, rsp
 lea rbx, [rbp-WORD_SIZE]
 .loop_reverse:
@@ -383,13 +392,6 @@ lea rbx, [rbp-WORD_SIZE]
 lea rdi, [rbp-WORD_SIZE]
 mov rsi, PARAMS_COUNT
 lea rsi, [rbp+rsi*WORD_SIZE+3*WORD_SIZE]
-mov rdx, rbp
-sub rdx, rsp
-shr rdx, 3
-
-lea r9, [rdx-4] ;number of arguments to f
-mov [rbp-4*WORD_SIZE], r9 ;set the current number of arguments to f on the new frame
-
 call copy_array_backward ;override the old frame with the new frame
 
 mov r10, r8
@@ -397,7 +399,7 @@ sub r10, r9
 inc r10
 lea rsp, [rbp+WORD_SIZE*r10] ;setup the stack pointer for the new function. it point to the return address right now
 mov rbp, [rsp - WORD_SIZE] ;restore the old RBP pointer
-jmp [rax + TYPE_SIZE + WORD_SIZE]
+jmp [r11 + TYPE_SIZE + WORD_SIZE]
 "
 
   (* This is the interface of the module. It constructs a large x86 64-bit string using the routines
