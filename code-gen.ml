@@ -746,43 +746,49 @@ module Code_Gen (* : CODE_GEN *) = struct
       ] in
       concat_list_of_code code
 
-    and generate_code_for_applic_core = fun operator_expr' operands_expr'_list comment_code call_code ->
-      let push_args =
-        List.fold_left
-        (fun acc expr' -> generate_code expr' :: "push rax" :: acc )
-        []
-        operands_expr'_list in
-      let rest_of_the_code =
-      [
-        "push " ^ (string_of_int (List.length operands_expr'_list));
-        generate_code operator_expr';
-        "push qword [rax + TYPE_SIZE]";
-        call_code;
+    and generate_code_for_applic_core = fun operator_expr' operands_expr'_list ->
+      let prepare_frame =
+        let push_args =
+          List.fold_left
+          (fun acc expr' -> generate_code expr' :: "push rax" :: acc )
+          []
+          operands_expr'_list in
+        let push_rest = [
+          "push " ^ (string_of_int (List.length operands_expr'_list));
+          generate_code operator_expr';
+          "push qword [rax + TYPE_SIZE]"
+        ] in
+        push_args @ push_rest in
+      let frame_cleanup = [
         "add rsp, WORD_SIZE  ; pop env";
         "pop rbx  ; pop args count";
         "shl rbx, 3  ; rbx = rbx * 8";
         "add rsp, rbx  ; pop args"
       ] in
-      concat_list_of_code ([comment_code] @ push_args @ rest_of_the_code)
+      (prepare_frame, frame_cleanup)
 
     and generate_code_for_applic = fun operator_expr' operands_expr'_list ->
-      generate_code_for_applic_core operator_expr' operands_expr'_list "; applic" "call [rax + TYPE_SIZE + WORD_SIZE]"
+      let comment = "; applic" in
+      let (prepare_frame, frame_cleanup) = generate_code_for_applic_core operator_expr' operands_expr'_list in
+      let call_code = "call [rax + TYPE_SIZE + WORD_SIZE]" in
+      concat_list_of_code ([comment] @ prepare_frame @ [call_code] @ frame_cleanup)
 
     and generate_code_for_applictp = fun operator_expr' operands_expr'_list ->
+      let comment = "; applic tp" in
+      let (prepare_frame, frame_cleanup) = generate_code_for_applic_core operator_expr' operands_expr'_list in
       let call_code =
-        let current_enclosing_labmda_param_vars = string_of_int !enclosing_labmda_param_vars_ref in
-        let old_frame_item_size = (List.length operands_expr'_list) + 4 in
-        let call_code_lines = [
-          "push RET_ADDR ; push old ret address";
-          "push OLD_RBP";
-          "lea rbx, [rbp - WORD_SIZE] ; set rbx to point the top of the new frame";
-          "lea rsp, [rbp + WORD_SIZE*(3 + " ^ current_enclosing_labmda_param_vars ^ ")] ; set rsp to point to the top of the old frame";
-          (* TODO: fix the macro for this specific use *)
-          "COPY_ARRAY_STATIC rbx, 0, rsp, 0, " ^ (string_of_int old_frame_item_size) ^ ", rcx, -1";
+        let enclosing_labmda_param_vars = !enclosing_labmda_param_vars_ref in
+        let operands_amount = List.length operands_expr'_list in
+        let new_frame_size = operands_amount + 3 in [
+          "push RET_ADDR  ;push old ret address";
+          "lea rbx, [rbp - WORD_SIZE] ;set rbx to point the top of the new frame";
+          "lea rsp, [rbp + WORD_SIZE*(3 + " ^ (string_of_int enclosing_labmda_param_vars) ^ ")] ; set rsp to point to the top of the old frame";
+          "COPY_ARRAY_STATIC rbx, rsp, " ^ (string_of_int new_frame_size) ^ ", rcx, 0, 0, -1, -1";
+          "lea rsp, [rbp+WORD_SIZE*(" ^ (string_of_int (-(operands_amount - enclosing_labmda_param_vars) + 1)) ^ ")] ;setup the stack pointer for the new function. it point to the return address right now";
+          "mov rbp, OLD_RBP ;restore the old RBP pointer";
           "jmp [rax + TYPE_SIZE + WORD_SIZE]"
         ] in
-        concat_list_of_code call_code_lines in
-      generate_code_for_applic_core operator_expr' operands_expr'_list "; applic tp" call_code
+      concat_list_of_code ([comment] @ prepare_frame @ call_code @ frame_cleanup)
 
 
     (*========== Generate code ==========*)

@@ -205,30 +205,27 @@
 ; NOTE:
 ;  * the size of each item in the arrays is assumed to be 8
 ;  * start1, start2 and length are compile time constants
-%macro COPY_ARRAY_STATIC 4-8 0 0 1 1
+%macro COPY_ARRAY_STATIC 4-8 0,0,1,1
     %push
     %define %$src %1
-    %define %$start1 %5
-    %define %$step1 WORD_SIZE*%7
-
+    %assign %$start1 %5
+    %assign %$step1 %7
     %define %$dest %2
-    %define %$start2 %6
-    %define %$step1 WORD_SIZE*%8
-
-    %define %$length %3
+    %assign %$start2 %6
+    %assign %$step2 %8
+    %assign %$length %3
     %define %$temp_reg %4
-
     %if %$length
-        %assign %$i %$step1*%$start1
-        %assign %$j %$step2*%$start2
+        %assign %$i %$start1
+        %assign %$j %$start2
         %rep %$length-1
-        mov %$temp_reg, qword [%$src+%$i]
-        mov qword [%$dest+%$j], %$temp_reg
-        %assign %$i %$i+%$step1
-        %assign %$j %$j+%$step2
+        mov %$temp_reg, qword [%$src+%$i*%$step1*WORD_SIZE]
+        mov qword [%$dest+%$j*%$step2*WORD_SIZE], %$temp_reg
+        %assign %$i %$i+1
+        %assign %$j %$j+1
         %endrep
-        mov %$temp_reg, qword [%$src+%$i]
-        mov qword [%$dest+%$j], %$temp_reg
+        mov %$temp_reg, qword [%$src+%$i*%$step1*WORD_SIZE]
+        mov qword [%$dest+%$j*%$step2*WORD_SIZE], %$temp_reg
     %endif
 %endmacro
 
