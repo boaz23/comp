@@ -654,52 +654,34 @@ module Code_Gen (* : CODE_GEN *) = struct
 
     and generate_code_for_box_get = fun var ->
       let inner_comment_index = comment_index () in
-      let var_string = var_to_string var in
-      let comment =
-        Printf.sprintf "; BoxGet%s of %s" inner_comment_index var_string in
-      let generated_code = generate_code_for_var var in
-      let mov_value_code = mov_to_register_qword_indirect rax_reg_str rax_reg_str in
       concat_list_of_code
       [
-        comment;
-        generated_code;
-        mov_value_code
+        "; BoxGet" ^ inner_comment_index ^ " of " ^  (var_to_string var);
+        generate_code_for_var var;
+        "mov rax, qword [rax]"
       ]
 
     and generate_code_for_box_set = fun var expr' ->
       let inner_comment_index = comment_index () in
-      let var_string = var_to_string var in
-      let comment =
-        Printf.sprintf "; BoxSet%s of %s" inner_comment_index var_string in
-      let expr_generated_code = generate_code expr' in
-      let push_rax_code = Printf.sprintf "push %s" rax_reg_str in
-      let code_get_pointer = generate_code_for_var var in
-      let pop_to_rax_indirect_code = Printf.sprintf "pop qword [%s]" rax_reg_str in
       concat_list_of_code
       [
-        comment;
-        expr_generated_code;
-        push_rax_code;
-        code_get_pointer;
-        pop_to_rax_indirect_code;
-        ret_void_code
+        "; BoxSet" ^ inner_comment_index ^ " of " ^  (var_to_string var);
+        generate_code expr';
+         "push rax";
+        generate_code_for_var var;
+        "pop qword [rax]";
+        "RET_VOID"
       ]
 
     and generate_code_for_box = fun var ->
       let inner_comment_index = comment_index () in
-      let var_string = var_to_string var in
-      let comment =  Printf.sprintf "; Box%s of %s" inner_comment_index var_string in
-      let make_var_code = generate_code_for_var var in
-      let mov_var_ptr_to_rbx = mov_to_register rbx_reg_str rax_reg_str in
-      let alloc_box_code = Printf.sprintf "MALLOC %s WORD_SIZE" rax_reg_str in
-      let set_var_ptr = mov_from_register_to_qword_indirect rax_reg_str rbx_reg_str in
       concat_list_of_code
       [
-        comment;
-        make_var_code;
-        mov_var_ptr_to_rbx;
-        alloc_box_code;
-        set_var_ptr
+        "; Box" ^ inner_comment_index ^ " of " ^  (var_to_string var);
+        generate_code_for_var var;
+        "mov rbx, rax";
+        "MALLOC rax WORD_SIZE";
+        "mov qword [rax], rbx"
       ]
 
     (*========== Define ==========*)
