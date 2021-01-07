@@ -722,13 +722,14 @@ module Code_Gen (* : CODE_GEN *) = struct
       let call_code =
         let enclosing_labmda_param_vars = !enclosing_labmda_param_vars_ref in
         let operands_amount = List.length operands_expr'_list in
-        let new_frame_size = operands_amount + 3 in [
+        let new_frame_size = operands_amount + 4 in [
           "push RET_ADDR  ;push old ret address";
+          "push OLD_RBP ;save the old RBP pointer";
           "lea rbx, [rbp - WORD_SIZE] ;set rbx to point the top of the new frame";
           "lea rsp, [rbp + WORD_SIZE*(3 + " ^ (string_of_int enclosing_labmda_param_vars) ^ ")] ; set rsp to point to the top of the old frame";
           "COPY_ARRAY_STATIC rbx, rsp, " ^ (string_of_int new_frame_size) ^ ", rcx, 0, 0, -1, -1";
           "lea rsp, [rbp+WORD_SIZE*(" ^ (string_of_int (-(operands_amount - enclosing_labmda_param_vars) + 1)) ^ ")] ;setup the stack pointer for the new function. it point to the return address right now";
-          "mov rbp, OLD_RBP ;restore the old RBP pointer";
+          "mov rbp, [rsp - WORD_SIZE] ;restore the old RBP pointer";
           "jmp [rax + TYPE_SIZE + WORD_SIZE]"
         ] in
       concat_list_of_code ([comment] @ prepare_frame @ call_code @ frame_cleanup)
