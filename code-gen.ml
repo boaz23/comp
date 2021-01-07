@@ -604,29 +604,20 @@ module Code_Gen (* : CODE_GEN *) = struct
 
     and generate_code_for_if = fun test dit dif ->
       let inner_comment_index = comment_index () in
-      let test_comment = "; test " ^ inner_comment_index in
-      let dit_comment = "; dit " ^ inner_comment_index in
-      let tif_comment = "; dif " ^ inner_comment_index in
-      let test_code = generate_code test in
-      let cmp_test = Printf.sprintf "cmp %s, SOB_FALSE_ADDRESS" rax_reg_str in
       let else_label_name = else_label_of_if () in
       let exit_label_name = exit_label () in
-      let jmp_if_false = Printf.sprintf "je %s" else_label_name in
-      let dit_code = generate_code dit in
-      let jmp_exit = Printf.sprintf "jmp %s" exit_label_name in
-      let dif_code = generate_code dif in
       concat_list_of_code
       [
-        test_comment;
-        test_code;
-        cmp_test;
-        jmp_if_false;
-        dit_comment;
-        dit_code;
-        jmp_exit;
+        "; test " ^ inner_comment_index;
+        generate_code test;
+        "cmp rax, SOB_FALSE_ADDRESS";
+        "je " ^ else_label_name;
+        "; dit " ^ inner_comment_index;
+        generate_code dit;
+        "jmp " ^ exit_label_name;
         (else_label_name ^ ":");
-        tif_comment;
-        dif_code;
+        "; dif " ^ inner_comment_index;
+        generate_code dif;
         (exit_label_name ^ ":")
       ]
 
