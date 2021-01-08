@@ -99,7 +99,7 @@
 	      (lambda (x)
 		(or (null? x)
 		    (and (pair? x)
-			 (list? (cdr x)))))))
+			 (list?-loop (cdr x)))))))
       list?-loop)))
 
 (define make-string
