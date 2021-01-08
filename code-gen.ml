@@ -31,7 +31,7 @@ module type CODE_GEN = sig
   val generate : (constant * (int * string)) list -> (string * int) list -> expr' -> string
 end;;
 
-module Code_Gen (* : CODE_GEN *) = struct
+module Code_Gen : CODE_GEN = struct
 
 (*
 ============== Const table ==============
@@ -455,7 +455,9 @@ module Code_Gen (* : CODE_GEN *) = struct
   let dec_env_depth () =  env_depth_ref := !env_depth_ref - 1;;
 
   let enclosing_labmda_param_vars_ref = ref(0);;
-  let set_enclosing_labmda_param_vars_ref = fun value ->
+  let get_enclosing_labmda_param_vars = fun () ->
+    !enclosing_labmda_param_vars_ref;;
+  let set_enclosing_labmda_param_vars = fun value ->
     enclosing_labmda_param_vars_ref := value;;
 
   let var_to_string = fun var ->
@@ -660,8 +662,8 @@ module Code_Gen (* : CODE_GEN *) = struct
       inc_env_depth ();
 
       let env_depth = !env_depth_ref in
-      let current_enclosing_labmda_param_vars = string_of_int !enclosing_labmda_param_vars_ref in
-      set_enclosing_labmda_param_vars_ref number_of_args;
+      let enclosing_labmda_param_vars = get_enclosing_labmda_param_vars () in
+      set_enclosing_labmda_param_vars number_of_args;
       let lcode_label_name = lcode_label () in
       let lcont_label_name = lcont_label () in
       let code = concat_list_of_code
@@ -671,10 +673,10 @@ module Code_Gen (* : CODE_GEN *) = struct
         "MALLOC rcx, WORD_SIZE*" ^ (string_of_int (env_depth+1));
         "mov rbx, ENV";
         "COPY_ARRAY_STATIC rbx, rcx, " ^ (string_of_int (env_depth)) ^ ", rax, 0, 1";
-        "MALLOC rbx, WORD_SIZE*" ^ current_enclosing_labmda_param_vars;
+        "MALLOC rbx, WORD_SIZE*" ^ (string_of_int enclosing_labmda_param_vars);
         "mov qword [rcx], rbx";
         "PVAR_ADDR(rax, 0)";
-        "COPY_ARRAY_STATIC rax, rbx, " ^ current_enclosing_labmda_param_vars ^ ", rdx";
+        "COPY_ARRAY_STATIC rax, rbx, " ^ (string_of_int enclosing_labmda_param_vars) ^ ", rdx";
         "MAKE_CLOSURE(rax, rcx, " ^ lcode_label_name ^ ")";
         "jmp " ^ lcont_label_name;
         lcode_label_name ^ ":";
@@ -685,6 +687,8 @@ module Code_Gen (* : CODE_GEN *) = struct
         "ret";
         lcont_label_name ^ ":"
       ] in
+
+      set_enclosing_labmda_param_vars enclosing_labmda_param_vars;
       dec_env_depth ();
       code
 
@@ -783,7 +787,7 @@ module Code_Gen (* : CODE_GEN *) = struct
       let comment = "; applic tp" in
       let (prepare_frame, frame_cleanup) = generate_code_for_applic_core operator_expr' operands_expr'_list in
       let call_code =
-        let enclosing_labmda_param_vars = !enclosing_labmda_param_vars_ref in
+        let enclosing_labmda_param_vars = get_enclosing_labmda_param_vars () in
         let operands_amount = List.length operands_expr'_list in
         let new_frame_size = operands_amount + 4 in [
           "push RET_ADDR  ;push old ret address";
