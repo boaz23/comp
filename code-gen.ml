@@ -135,14 +135,20 @@ module Code_Gen (* : CODE_GEN *) = struct
     let bool_val = if bool then 1 else 0 in
       Printf.sprintf "db T_BOOL, %d" bool_val;;
   let make_literal_char_asm_code = fun ch ->
-    Printf.sprintf "db T_CHAR, \"%s\"" (String.make 1 ch);;
+    Printf.sprintf "db T_CHAR, %d" (Char.code ch);;
   let make_literal_rational_asm_code = fun num den ->
     Printf.sprintf "MAKE_LITERAL_RATIONAL(%d, %d)" num den;;
   let make_literal_float_asm_code = fun float ->
     Printf.sprintf "MAKE_LITERAL_FLOAT(%f)" float;;
   let make_literal_string_asm_code = fun str ->
     let str_len = String.length str in
-      Printf.sprintf "MAKE_LITERAL_STRING(%d, \"%s\")" str_len str;;
+    let chars_codes_str_cs =
+      let string_chars_list = string_to_list str in
+      let chars_codes = List.map Char.code string_chars_list in
+      let chars_codes_strs = List.map (Printf.sprintf "%d") chars_codes in
+      let chars_codes_str_cs = String.concat ", " chars_codes_strs in
+      chars_codes_str_cs in
+      Printf.sprintf "MAKE_LITERAL_STRING(%d, {%s})" str_len chars_codes_str_cs;;
   let make_literal_symbol_asm_code = fun addr ->
       Printf.sprintf "MAKE_LITERAL_SYMBOL(%s%d)" const_tbl_label_plus addr;;
   let make_literal_pair_asm_code = fun addr_car addr_cdr ->
@@ -639,7 +645,7 @@ module Code_Gen (* : CODE_GEN *) = struct
         "; Box" ^ inner_comment_index ^ " of " ^  (var_to_string var);
         generate_code_for_var var;
         "mov rbx, rax";
-        "MALLOC rax WORD_SIZE";
+        "MALLOC rax, WORD_SIZE";
         "mov qword [rax], rbx"
       ]
 
@@ -692,10 +698,10 @@ module Code_Gen (* : CODE_GEN *) = struct
       let number_of_required_args = List.length arg_names in
       let number_of_args = number_of_required_args + 1 in
       let comment = "; lambda opt with "^ (string_of_int number_of_args) ^ " args" in
-      let body_fun_code = 
-      (fun () -> 
-        concat_list_of_code 
-        [ 
+      let body_fun_code =
+      (fun () ->
+        concat_list_of_code
+        [
           "mov r8, PARAMS_COUNT";
           "cmp r8, " ^ (string_of_int number_of_required_args);
           "je .no_opt_arg";
@@ -720,7 +726,7 @@ module Code_Gen (* : CODE_GEN *) = struct
           "mov PVAR(r8-1), rbx";
           "PVAR_ADDR(rsi, r8-2)";
           "PVAR_ADDR(rdi, " ^ (string_of_int (number_of_required_args - 1)) ^ ")";
-          
+
           "mov r9, rsi";
           "sub r9, rdi";
 

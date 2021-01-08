@@ -151,7 +151,7 @@
     MAKE_WORD_LIT T_FLOAT, num
 
 %define MAKE_LITERAL_STRING(len, string) \
-    MAKE_STRING_LIT len, string
+    MAKE_STRING_LIT len, {string}
 
 %define MAKE_LITERAL_SYMBOL(addr) \
     MAKE_WORD_LIT T_SYMBOL, addr
