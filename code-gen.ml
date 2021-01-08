@@ -650,24 +650,15 @@ module Code_Gen (* : CODE_GEN *) = struct
 
     (*========== Lambda ==========*)
 
-    and generate_code_for_lambda = fun lambda ->
+    and generate_code_for_lambda = fun generate_body number_of_args  ->
       inc_env_depth ();
-      let generated_code =
-        match lambda with
-        | LambdaSimple'(arg_names, body_expr') ->
-            generate_code_for_lambda_simple body_expr' (List.length arg_names)
-        | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> raise X_not_yet_implemented
-        | _ -> raise X_syntax_error in
-      dec_env_depth ();
-      generated_code
 
-    and generate_code_for_lambda_simple = fun body_expr' number_of_args ->
       let env_depth = !env_depth_ref in
       let current_enclosing_labmda_param_vars = string_of_int !enclosing_labmda_param_vars_ref in
       set_enclosing_labmda_param_vars_ref number_of_args;
       let lcode_label_name = lcode_label () in
       let lcont_label_name = lcont_label () in
-      let code =
+      let code = concat_list_of_code
       [
         "; lambda simple depth " ^ (string_of_int env_depth);
         "MALLOC rcx, WORD_SIZE*" ^ (string_of_int (env_depth+1));
@@ -682,12 +673,20 @@ module Code_Gen (* : CODE_GEN *) = struct
         lcode_label_name ^ ":";
         "push rbp";
         "mov rbp, rsp";
-        generate_code body_expr';
+        generate_body ();
         "leave";
         "ret";
         lcont_label_name ^ ":"
       ] in
-      concat_list_of_code code
+      dec_env_depth ();
+      code
+
+    and generate_code_for_lambda_simple = fun arg_names body_expr' ->
+      let number_of_args = List.length arg_names in
+      let body_fun_code = (fun () -> generate_code body_expr') in
+        generate_code_for_lambda body_fun_code number_of_args
+
+    (*========== Applic ==========*)
 
     and generate_code_for_applic_core = fun operator_expr' operands_expr'_list ->
       let prepare_frame =
@@ -755,8 +754,8 @@ module Code_Gen (* : CODE_GEN *) = struct
 
       | Or'(expr'_list) -> generate_code_for_or expr'_list
 
-      | LambdaSimple'(arg_names, body_expr') -> generate_code_for_lambda expr'
-      | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> generate_code_for_lambda expr'
+      | LambdaSimple'(arg_names, body_expr') -> generate_code_for_lambda_simple arg_names body_expr'
+      | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> raise X_not_yet_implemented
 
       | Applic'(operator_expr', operands_expr'_list) -> generate_code_for_applic operator_expr' operands_expr'_list
       | ApplicTP'(operator_expr', operands_expr'_list) -> generate_code_for_applictp operator_expr' operands_expr'_list in
