@@ -650,7 +650,7 @@ module Code_Gen (* : CODE_GEN *) = struct
 
     (*========== Lambda ==========*)
 
-    and generate_code_for_lambda = fun generate_body number_of_args  ->
+    and generate_code_for_lambda = fun comment generate_body number_of_args  ->
       inc_env_depth ();
 
       let env_depth = !env_depth_ref in
@@ -660,7 +660,8 @@ module Code_Gen (* : CODE_GEN *) = struct
       let lcont_label_name = lcont_label () in
       let code = concat_list_of_code
       [
-        "; lambda simple depth " ^ (string_of_int env_depth);
+        comment;
+        "; in depth " ^ (string_of_int env_depth);
         "MALLOC rcx, WORD_SIZE*" ^ (string_of_int (env_depth+1));
         "mov rbx, ENV";
         "COPY_ARRAY_STATIC rbx, rcx, " ^ (string_of_int (env_depth)) ^ ", rax, 0, 1";
@@ -684,7 +685,34 @@ module Code_Gen (* : CODE_GEN *) = struct
     and generate_code_for_lambda_simple = fun arg_names body_expr' ->
       let number_of_args = List.length arg_names in
       let body_fun_code = (fun () -> generate_code body_expr') in
-        generate_code_for_lambda body_fun_code number_of_args
+      let comment = "; lambda simple with "^ (string_of_int number_of_args) ^ " args" in
+        generate_code_for_lambda comment body_fun_code number_of_args
+
+    and generate_code_for_lambda_opt = fun arg_names opt_arg_name body_expr' ->
+      let number_of_required_args = List.length arg_names in
+      let number_of_args = number_of_required_args + 1 in
+      let comment = "; lambda opt with "^ (string_of_int number_of_args) ^ " args" in
+      let body_fun_code = 
+      (fun () -> 
+        concat_list_of_code 
+        [
+          "mov r8, PARAMS_COUNT";
+          "cmp r8, " ^ (string_of_int number_of_required_args);
+          "je .no_opt_arg";
+          "";
+          "jmp .stack_adjustment_done";
+          ".no_opt_arg:";
+          "lea rsi, [rbp - WORD_SIZE]";
+          "COPY_ARRAY_STATIC rbp, rsi, " ^ (string_of_int (4 + number_of_required_args)) ^ ", rcx";
+          "mov rbp, rsi";
+          "mov rsp, rbp";
+          "mov PVAR(" ^ (string_of_int number_of_required_args) ^ "), SOB_NIL_ADDRESS";
+          ".stack_adjustment_done:";
+          "mov PARAMS_COUNT, " ^ (string_of_int number_of_args);
+          generate_code body_expr'
+        ]
+      ) in
+      generate_code_for_lambda comment body_fun_code number_of_args
 
     (*========== Applic ==========*)
 
@@ -755,7 +783,7 @@ module Code_Gen (* : CODE_GEN *) = struct
       | Or'(expr'_list) -> generate_code_for_or expr'_list
 
       | LambdaSimple'(arg_names, body_expr') -> generate_code_for_lambda_simple arg_names body_expr'
-      | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> raise X_not_yet_implemented
+      | LambdaOpt'(req_arg_names, opt_arg_name, body_expr') -> generate_code_for_lambda_opt req_arg_names opt_arg_name body_expr'
 
       | Applic'(operator_expr', operands_expr'_list) -> generate_code_for_applic operator_expr' operands_expr'_list
       | ApplicTP'(operator_expr', operands_expr'_list) -> generate_code_for_applictp operator_expr' operands_expr'_list in
