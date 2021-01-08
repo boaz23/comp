@@ -144,15 +144,30 @@ and expr'_to_string = function
   | Applic' (expr', expr'_list) -> applic_to_string "Applic'" expr' expr'_list
   | ApplicTP' (expr', expr'_list) -> applic_to_string "ApplicTP'" expr' expr'_list;;
 
-let make_abstract_test_analysis_from_string = fun f_transformation f_out_transformation f_report_error string expected ->
-  read_expr'
+let make_abstract_test_analysis = fun f_expr' f_transformation f_out_transformation f_report_error input expected ->
+  f_expr'
     (fun expr' ->
       let actual = f_transformation expr' in
       if (actual <> expected) then
         let actual_t = f_out_transformation actual in
         let expected_t = f_out_transformation expected in
-        f_report_error string actual_t expected_t)
-    string;;
+        f_report_error input actual_t expected_t)
+    input;;
+
+let test_expr_case =
+  make_abstract_test_analysis
+    (fun f expr -> f (Semantics.run_semantics expr))
+    (fun expr' -> expr')
+    expr'_to_string
+    (fun expr actual_s expected_s ->
+      Printf.printf
+        "error in %s test:  \n{ %s }\n  expected: { %s }\n  actual: { %s }\n\n"
+        "general tests"
+        ""
+        expected_s
+        actual_s)
+
+let make_abstract_test_analysis_from_string = make_abstract_test_analysis read_expr';;
 
 let make_test_analysis_from_string = fun f function_name string expected ->
   make_abstract_test_analysis_from_string
@@ -1042,10 +1057,127 @@ let test_annotate_boxes = fun () ->
       )
     ));;
 
+let general_tests = fun () ->
+  test_expr_case
+    (LambdaOpt (
+      ["x"; "y"; "z"],
+      "w",
+      Seq [
+        Var "z";
+        LambdaSimple ([], Seq [Set (Var "w", Var "w")])
+      ]
+    ))
+    (LambdaOpt' (
+      ["x"; "y"; "z"],
+      "w",
+      Seq' [
+        Var' (VarParam ("z", 2));
+        LambdaSimple' (
+          [],
+          Seq' [Set' (VarBound ("w", 0, 3), Var' (VarBound ("w", 0, 3)))]
+        )
+      ]
+    ));
+
+  test_expr_case
+    (Def (
+      Var "test",
+      LambdaOpt (
+        ["x"],
+        "y",
+        Applic (
+          Var "cons", [
+            Var "x";
+            LambdaSimple ([], Set (Var "x", Var "c"));
+            LambdaSimple (
+              [],
+              Seq ([
+                Var "y";
+                Set (Var "y", Var "a");
+                Applic (Var "b", [])
+              ])
+            )
+          ]
+        )
+      )
+    ))
+    (Def' (
+      VarFree "test",
+      LambdaOpt' (
+        ["x"],
+        "y",
+        Seq' ([
+          Set' (VarParam ("x", 0), Box' (VarParam ("x", 0)));
+          ApplicTP' (
+            Var' (VarFree "cons"), [
+              BoxGet' (VarParam ("x", 0));
+              LambdaSimple' ([], BoxSet' (VarBound ("x", 0, 0), Var' (VarFree "c")));
+              LambdaSimple' (
+                [],
+                Seq' ([
+                  Var' (VarBound ("y", 0, 1));
+                  Set' (VarBound ("y", 0, 1), Var' (VarFree "a"));
+                  ApplicTP' (Var'  (VarFree "b"), [])
+                ])
+              )
+            ]
+          )
+        ])
+      )
+    ));
+
+  test_expr_case
+    (Def (
+      Var "test",
+      LambdaOpt (
+        ["x"],
+        "y",
+        Applic (
+          Var "cons", [
+            Var "x";
+            LambdaSimple ([], Set (Var "x", Var "c"));
+            LambdaSimple (
+              [],
+              Seq ([
+                Applic (Var "x", [Var "y"]);
+                Var "y";
+                Set (Var "y", Var "a")
+              ])
+            )
+          ]
+        )
+      )
+    ))
+    (Def' (
+      VarFree "test",
+      LambdaOpt' (
+        ["x"],
+        "y",
+        Seq' ([
+          Set' (VarParam ("x", 0), Box' (VarParam ("x", 0)));
+          ApplicTP' (
+            Var' (VarFree "cons"), [
+              BoxGet' (VarParam ("x", 0));
+              LambdaSimple' ([], BoxSet' (VarBound ("x", 0, 0), Var' (VarFree "c")));
+              LambdaSimple' (
+                [],
+                Seq' ([
+                  Applic' (BoxGet' (VarBound ("x", 0, 0)), [Var' (VarBound ("y", 0, 1))]);
+                  Var' (VarBound ("y", 0, 1));
+                  Set' (VarBound ("y", 0, 1), Var' (VarFree "a"))
+                ])
+              )
+            ]
+          )
+        ])
+      )
+    ));;
+
 let main = fun () ->
   Printf.printf "\nrunning tests...\n";
   test_annotate_lexical_addresses ();
   test_annotate_tail_calls();
-  test_annotate_boxes();;
+  test_annotate_boxes();
+  general_tests();;
 
 main();;
