@@ -695,11 +695,41 @@ module Code_Gen (* : CODE_GEN *) = struct
       let body_fun_code = 
       (fun () -> 
         concat_list_of_code 
-        [
+        [ 
           "mov r8, PARAMS_COUNT";
           "cmp r8, " ^ (string_of_int number_of_required_args);
           "je .no_opt_arg";
-          "";
+
+          "mov rbx, SOB_NIL_ADDRESS";
+          "PVAR_ADDR(rsi, r8-1)";
+          "PVAR_ADDR(rdi, " ^ (string_of_int (number_of_required_args - 1)) ^ ")";
+
+          ".build_list_s:";
+          "cmp rsi, rdi";
+          "je .build_list_e";
+
+          "mov rcx, qword [rsi]";
+          "MAKE_PAIR(rax, rcx, rbx)";
+
+          "mov rbx, rax";
+          "sub rsi, WORD_SIZE";
+
+          "jmp .build_list_s";
+          ".build_list_e:";
+
+          "mov PVAR(r8-1), rbx";
+          "PVAR_ADDR(rsi, r8-2)";
+          "PVAR_ADDR(rdi, " ^ (string_of_int (number_of_required_args - 1)) ^ ")";
+          
+          "mov r9, rsi";
+          "sub r9, rdi";
+
+          "mov rdx, " ^ (string_of_int (4 + number_of_required_args));
+          "call copy_array_backward";
+
+          "add rsp, r9";
+          "mov rbp, rsp";
+
           "jmp .stack_adjustment_done";
           ".no_opt_arg:";
           "lea rsi, [rbp - WORD_SIZE]";
