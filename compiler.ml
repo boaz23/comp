@@ -111,13 +111,14 @@ user_code_fragment:
 nop\n\n";;
 
 let clean_exit =
-  ";;; Clean up the dummy frame, set the exit status to 0 (\"success\"),
+  "\n
+   ;;; Clean up the dummy frame, set the exit status to 0 (\"success\"),
    ;;; and return from main
    pop rbp
    add rsp, 3*8
    mov rax, 0
 
-   ret";;
+   ret\n";;
 
 exception X_missing_input_file;;
 
@@ -132,7 +133,7 @@ exception X_missing_input_file;;
 let generate_code_for_asts generate asts =
   String.concat "\n\n"
     (List.map
-        (fun ast -> (generate ast) ^ "\n\tcall write_sob_if_not_void")
+        (fun ast -> (generate ast) ^ "\ncall write_sob_if_not_void")
         asts);;
 
 let str_sub_from_last_char_occur char string =
