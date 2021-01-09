@@ -107,8 +107,8 @@ main:
 user_code_fragment:
 ;;; The code you compiled will be added here.
 ;;; It will be executed immediately after the closures for
-;;; the primitive procedures are set up.\n
-nop";;
+;;; the primitive procedures are set up.
+nop\n\n";;
 
 let clean_exit =
   ";;; Clean up the dummy frame, set the exit status to 0 (\"success\"),

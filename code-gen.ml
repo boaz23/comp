@@ -415,10 +415,7 @@ module Code_Gen : CODE_GEN = struct
 
   (*========== General code ==========*)
 
-  let concat_list_of_code = fun list ->
-    String.concat
-    "\n"
-    list;;
+  let concat_list_of_code = fun list -> String.concat "\n" list;;
 
   let comment_indexer = ref(0);;
   let comment_index () =
@@ -461,6 +458,12 @@ module Code_Gen : CODE_GEN = struct
     | VarBound (var_name, major, minor) ->
       Printf.sprintf "VarBound %s, major %d, minor %d" var_name major minor;;
 
+  let expr'_to_string = expr'_to_scheme_code_lookalike;;
+  let get_start_comment = fun s ->
+    "; ---------- start of: " ^ s;;
+  let get_end_comment = fun s ->
+    "; ---------- end of: " ^ s;;
+
   let generate_code_wrapper = fun consts_tbl fvars expr' ->
 
     (*========== Const ==========*)
@@ -481,16 +484,14 @@ module Code_Gen : CODE_GEN = struct
       let code_adress = get_var_offset_code_from_fvars_tbl var_name fvars in
       concat_list_of_code
       [
-        comment;
-        "mov rax, qword [" ^ code_adress ^ "]"
+        "mov rax, qword [" ^ code_adress ^ "]" ^ "  " ^ comment
       ] in
 
     let generate_code_for_var_param = fun var_name minor ->
       let comment = Printf.sprintf ";Get VarParam(%s, %d)" var_name minor in
       concat_list_of_code
       [
-        comment;
-        "mov rax, PVAR(" ^ (string_of_int minor) ^ ")"
+        "mov rax, PVAR(" ^ (string_of_int minor) ^ ")" ^ "  " ^ comment
       ] in
 
     let generate_code_for_var_bound = fun var_name major minor ->
@@ -512,29 +513,26 @@ module Code_Gen : CODE_GEN = struct
     (*========== Vars set ==========*)
 
     let generate_code_for_free_var_set = fun var_name ->
-      let comment = Printf.sprintf ";Set VarFree(%s)" var_name in
+      let comment = Printf.sprintf "Set VarFree(%s)" var_name in
       let var_address = get_var_offset_code_from_fvars_tbl var_name fvars in
-      concat_list_of_code
+      comment, concat_list_of_code
       [
-        comment;
         "mov qword [" ^ var_address ^ "], rax";
         "RET_VOID"
       ] in
 
     let generate_code_for_var_param_set = fun var_name minor ->
       let comment = Printf.sprintf "Set VarParam(%s, %d)" var_name minor in
-      concat_list_of_code
+      comment, concat_list_of_code
       [
-        comment;
         "mov PVAR(" ^ (string_of_int minor) ^ "), rax";
         "RET_VOID"
       ] in
 
     let generate_code_for_var_bound_set = fun var_name major minor ->
-      let comment = Printf.sprintf ";Set VarBound(%s, %d, %d)" var_name major minor in
-      concat_list_of_code
+      let comment = Printf.sprintf "Set VarBound(%s, %d, %d)" var_name major minor in
+      comment, concat_list_of_code
         [
-          comment;
           "mov rbx, ENV";
           "mov rbx, [rbx + WORD_SIZE * " ^ (string_of_int major) ^ "]";
           "mov qword [rbx + WORD_SIZE * " ^ (string_of_int minor) ^ "], rax";
@@ -549,17 +547,16 @@ module Code_Gen : CODE_GEN = struct
 
     let rec generate_code_for_set = fun var expr' ->
       let generated_code_for_expr' = generate_code expr' in
-      let generated_code_for_var' = generate_code_for_set_var var in
-      concat_list_of_code [generated_code_for_expr'; generated_code_for_var']
+      let comment, generated_code_for_var' = generate_code_for_set_var var in
+      comment, concat_list_of_code [generated_code_for_expr'; generated_code_for_var']
 
     (*========== Sequence ==========*)
 
     and generate_code_for_sequence = fun expr'_list ->
       let inner_comment_index = comment_index () in
-      let open_comment = "; Open sequence " ^ inner_comment_index in
-      let close_comment = "; Close sequence " ^ inner_comment_index in
+      let omment = "sequence #" ^ inner_comment_index in
       let code_list = List.map generate_code expr'_list in
-        concat_list_of_code ((open_comment :: code_list) @ [close_comment])
+        omment, concat_list_of_code code_list
 
     (*========== If ==========*)
 
@@ -567,17 +564,18 @@ module Code_Gen : CODE_GEN = struct
       let inner_comment_index = comment_index () in
       let else_label_name = else_label_of_if () in
       let exit_label_name = exit_label () in
-      concat_list_of_code
+      let comment = "if #" ^ inner_comment_index in
+      comment, concat_list_of_code
       [
-        "; test " ^ inner_comment_index;
+        "; if test #" ^ inner_comment_index;
         generate_code test;
         "cmp rax, SOB_FALSE_ADDRESS";
         "je " ^ else_label_name;
-        "; dit " ^ inner_comment_index;
+        "; if dit #" ^ inner_comment_index;
         generate_code dit;
         "jmp " ^ exit_label_name;
         (else_label_name ^ ":");
-        "; dif " ^ inner_comment_index;
+        "; if dif #" ^ inner_comment_index;
         generate_code dif;
         (exit_label_name ^ ":")
       ]
@@ -586,7 +584,7 @@ module Code_Gen : CODE_GEN = struct
 
       and generate_code_for_or = fun expr'_list ->
         let inner_comment_index = comment_index () in
-        let comment = "; Or " ^ inner_comment_index in
+        let comment = "or #" ^ inner_comment_index in
         let exit_label_name = exit_label () in
         let cmp_and_jmp_code =
           concat_list_of_code
@@ -609,24 +607,24 @@ module Code_Gen : CODE_GEN = struct
           | [] -> ["mov rax, SOB_FALSE_ADDRESS"]
           | _ :: rest -> rest in
         let code_list = code_list @ [exit_label_name ^ ":"] in
-        concat_list_of_code (comment :: code_list)
+        comment, concat_list_of_code code_list
 
     (*========== Box get set ==========*)
 
     and generate_code_for_box_get = fun var ->
       let inner_comment_index = comment_index () in
-      concat_list_of_code
+      "", concat_list_of_code
       [
-        "; BoxGet" ^ inner_comment_index ^ " of " ^  (var_to_string var);
+        "; BoxGet #" ^ inner_comment_index ^ " of " ^  (var_to_string var);
         generate_code_for_var var;
         "mov rax, qword [rax]"
       ]
 
     and generate_code_for_box_set = fun var expr' ->
       let inner_comment_index = comment_index () in
-      concat_list_of_code
+      let comment = "; BoxSet #" ^ inner_comment_index ^ " of " ^  (var_to_string var) in
+      comment, concat_list_of_code
       [
-        "; BoxSet" ^ inner_comment_index ^ " of " ^  (var_to_string var);
         generate_code expr';
          "push rax";
         generate_code_for_var var;
@@ -636,9 +634,9 @@ module Code_Gen : CODE_GEN = struct
 
     and generate_code_for_box = fun var ->
       let inner_comment_index = comment_index () in
-      concat_list_of_code
+      "", concat_list_of_code
       [
-        "; Box" ^ inner_comment_index ^ " of " ^  (var_to_string var);
+        "; Box #" ^ inner_comment_index ^ " of " ^  (var_to_string var);
         generate_code_for_var var;
         "mov rbx, rax";
         "MALLOC rax, WORD_SIZE";
@@ -648,7 +646,8 @@ module Code_Gen : CODE_GEN = struct
     (*========== Define ==========*)
 
     and generate_code_for_def = fun var expr' ->
-      concat_list_of_code ["; Define"; generate_code_for_set var expr']
+      let _, code = generate_code_for_set var expr' in
+      "", code
 
     (*========== Lambda ==========*)
 
@@ -662,7 +661,6 @@ module Code_Gen : CODE_GEN = struct
       let lcont_label_name = lcont_label () in
       let code = concat_list_of_code
       [
-        comment;
         "; in depth " ^ (string_of_int env_depth);
         "MALLOC rcx, WORD_SIZE*" ^ (string_of_int (env_depth+1));
         "mov rbx, ENV";
@@ -684,18 +682,22 @@ module Code_Gen : CODE_GEN = struct
 
       set_enclosing_labmda_param_vars enclosing_labmda_param_vars;
       dec_env_depth ();
-      code
+      comment, code
 
     and generate_code_for_lambda_simple = fun arg_names body_expr' ->
       let number_of_args = List.length arg_names in
       let body_fun_code = (fun () -> generate_code body_expr') in
-      let comment = "; lambda simple with "^ (string_of_int number_of_args) ^ " args" in
-        generate_code_for_lambda comment body_fun_code number_of_args
+      let comment =
+        let inner_comment_index = comment_index () in
+        Printf.sprintf "lambda simple #%s with %d args" inner_comment_index number_of_args in
+      generate_code_for_lambda comment body_fun_code number_of_args
 
     and generate_code_for_lambda_opt = fun arg_names opt_arg_name body_expr' ->
       let number_of_required_args = List.length arg_names in
       let number_of_args = number_of_required_args + 1 in
-      let comment = "; lambda opt with "^ (string_of_int number_of_args) ^ " args" in
+      let comment =
+        let inner_comment_index = comment_index () in
+        Printf.sprintf "lambda opt #%s with %d args" inner_comment_index number_of_args in
       let body_fun_code =
       (fun () ->
         concat_list_of_code
@@ -772,13 +774,17 @@ module Code_Gen : CODE_GEN = struct
       (prepare_frame, frame_cleanup)
 
     and generate_code_for_applic = fun operator_expr' operands_expr'_list ->
-      let comment = "; applic" in
+      let comment =
+        let inner_comment_index = comment_index () in
+        Printf.sprintf "applic #" ^ inner_comment_index in
       let (prepare_frame, frame_cleanup) = generate_code_for_applic_core operator_expr' operands_expr'_list in
       let call_code = "call [rax + TYPE_SIZE + WORD_SIZE]" in
-      concat_list_of_code ([comment] @ prepare_frame @ [call_code] @ frame_cleanup)
+      comment, concat_list_of_code (prepare_frame @ [call_code] @ frame_cleanup)
 
     and generate_code_for_applictp = fun operator_expr' operands_expr'_list ->
-      let comment = "; applic tp" in
+      let comment =
+        let inner_comment_index = comment_index () in
+        Printf.sprintf "applic TP #" ^ inner_comment_index in
       let (prepare_frame, frame_cleanup) = generate_code_for_applic_core operator_expr' operands_expr'_list in
       let call_code =
         let enclosing_labmda_param_vars = get_enclosing_labmda_param_vars () in
@@ -793,22 +799,32 @@ module Code_Gen : CODE_GEN = struct
           "mov rbp, [rsp - WORD_SIZE] ;restore the old RBP pointer";
           "jmp [rax + TYPE_SIZE + WORD_SIZE]"
         ] in
-      concat_list_of_code ([comment] @ prepare_frame @ call_code @ frame_cleanup)
-
+      comment, concat_list_of_code (prepare_frame @ call_code @ frame_cleanup)
 
     (*========== Generate code ==========*)
-
     and generate_code = fun expr' ->
-      concat_list_of_code [
-        Printf.sprintf "; %s" (expr'_to_scheme_code_lookalike expr');
-        generate_code_core expr'
-      ]
+      match expr' with
+      | (Const' _ | Var' _) ->
+        let _, code = generate_code_core expr' in
+        code
+      | _ ->
+        let expr'_scheme_code = expr'_to_string expr' in
+        let start_comment = get_start_comment expr'_scheme_code in
+        let end_comment = get_end_comment expr'_scheme_code in
+        let comment, asm = generate_code_core expr' in
+        let code_list =
+          if comment = "" then [start_comment; asm; end_comment]
+          else
+            let expr_start_comment = "; start: " ^ comment in
+            let expr_end_comment = "; end: " ^ comment in
+            [start_comment; expr_start_comment; asm; expr_end_comment; end_comment] in
+        concat_list_of_code code_list
 
     and generate_code_core = fun expr' ->
       match expr' with
-      | Const'(const) -> generate_code_for_constant const
+      | Const'(const) -> "", generate_code_for_constant const
 
-      | Var'(var) -> generate_code_for_var var
+      | Var'(var) -> "", generate_code_for_var var
       | Box'(var) -> generate_code_for_box var
       | BoxGet'(var) -> generate_code_for_box_get var
       | BoxSet'(var, expr') -> generate_code_for_box_set var expr'
