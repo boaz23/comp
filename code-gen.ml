@@ -1,4 +1,5 @@
 #use "semantic-analyser.ml";;
+#use "exp_to_string.ml";;
 
 (* This module is here for you convenience only!
    You are not required to use it.
@@ -238,6 +239,9 @@ module Code_Gen : CODE_GEN = struct
         let const_asm_code = make_asm_code const tuple_const_list index in
         let const_sob_size =  get_sob_size_of_const const in
         let const_index = index + const_sob_size in
+        let const_asm_code =
+          let comment = Printf.sprintf "; offset %d, %s" index (constant_to_string const) in
+          Printf.sprintf "%s %s" const_asm_code comment in
         let const_tuple = (const, (index, const_asm_code)) in
          build_consts_tbl_rec rest (tuple_const_list @ [const_tuple]) const_index
       )
@@ -309,16 +313,6 @@ module Code_Gen : CODE_GEN = struct
   let get_index_of_const_in_const_tbl = fun const const_tbl ->
     let const_tuple = List.assoc const const_tbl in
       fst const_tuple;;
-
-  let generate_asm_code_from_const_tbl = fun const_tbl ->
-    List.fold_left
-    (fun acc tuple ->
-      let asm_tuple_code = get_code_from_tuple tuple in
-      let asm_tuple_code = asm_tuple_code ^ "\n" in
-        acc ^ asm_tuple_code
-    )
-    ""
-    const_tbl;;
 
 (*
 ============== Free var table ==============
