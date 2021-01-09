@@ -127,6 +127,33 @@ exception X_missing_input_file;;
    file (i.e. "ocaml compiler.ml some_file.scm > output.s").
    This assumption is already handled correctly in the provided makefile.
  *)
+
+let generate_code_for_asts generate asts =
+  String.concat "\n\n"
+    (List.map
+        (fun ast -> (generate ast) ^ "\n\tcall write_sob_if_not_void")
+        asts);;
+
+let shorten_file_path file =
+  let file_path_len = String.length file in
+  let last_dir_sep_index_opt = String.rindex_from_opt file (file_path_len - 1) '/' in
+  match last_dir_sep_index_opt with
+  | Some last_dir_sep_index ->
+    let start_index = last_dir_sep_index + 1 in
+    let sub_len = (file_path_len - last_dir_sep_index - 1) in
+    String.sub file start_index sub_len
+  | None -> file;;
+
+let generate_code_for_file_asts generate file asts =
+  let short_file_name = shorten_file_path file in
+  Printf.sprintf ";file: %s\n%s" short_file_name (generate_code_for_asts generate asts);;
+
+let generate_code_for_files_asts generate files files_asts =
+  let files_asm_code = List.map2
+    (generate_code_for_file_asts generate)
+    files files_asts in
+  String.concat "\n\n" files_asm_code;;
+
 try
   (* Compile a string of scheme code to a collection of analyzed ASTs *)
   let string_to_asts s = List.map Semantics.run_semantics
@@ -143,23 +170,21 @@ try
   ] in
 
   let files_code = List.map file_to_string files in
-  let code = String.concat "\n\n" files_code in
 
   (* generate asts for all the code *)
-  let asts = string_to_asts code in
+  let files_asts = List.map string_to_asts files_code in
+  let flattened_asts = List.concat files_asts in
 
   (* generate the constants table *)
-  let consts_tbl = Code_Gen.make_consts_tbl asts in
+  let consts_tbl = Code_Gen.make_consts_tbl flattened_asts in
 
   (* generate the fvars table *)
-  let fvars_tbl = Code_Gen.make_fvars_tbl asts in
+  let fvars_tbl = Code_Gen.make_fvars_tbl flattened_asts in
 
   (* Generate assembly code for each ast and merge them all into a single string *)
   let generate = Code_Gen.generate consts_tbl fvars_tbl in
-  let code_fragment = String.concat "\n\n"
-                        (List.map
-                           (fun ast -> (generate ast) ^ "\n\tcall write_sob_if_not_void")
-                           asts) in
+  let code_fragment = generate_code_for_files_asts generate files files_asts in
+
   (* merge everything into a single large string and print it out *)
   print_string ((make_prologue consts_tbl fvars_tbl)  ^
                   code_fragment ^ clean_exit ^
