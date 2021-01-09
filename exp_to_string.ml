@@ -1,5 +1,13 @@
 #use "semantic-analyser.ml";;
 
+module type EXP_STRING = sig
+  val constant_to_string : constant -> string
+  val sexpr_to_string : sexpr -> string
+  val expr'_to_scheme_code_lookalike : expr' -> string
+end;;
+
+module ExpString : EXP_STRING = struct
+
 let rec sexpr_pair_fold_left f_list f_remainder acc sexpr =
   match sexpr with
   | Nil -> acc
@@ -71,13 +79,13 @@ let constant_to_string = function
   | Sexpr sexpr -> sexpr_to_string sexpr
   | Void -> "#<void>";;
 
-let expr'_to_scheme_code_lookalike = fun expr' ->
-  let var_to_string = fun var ->
-    match var with
-    | VarFree var_name -> var_name
-    | VarParam (var_name, var_pos) -> var_name
-    | VarBound (var_name, major, minor) -> var_name in
+let var_name = fun var ->
+  match var with
+  | VarFree var_name -> var_name
+  | VarParam (var_name, var_pos) -> var_name
+  | VarBound (var_name, major, minor) -> var_name;;
 
+let expr'_to_scheme_code_lookalike = fun expr' ->
   let rec expr'_list_to_string_core = fun expr's_list ->
     let (s, _) =
       List.fold_right
@@ -112,14 +120,14 @@ let expr'_to_scheme_code_lookalike = fun expr' ->
 
   and expr'_to_string = function
   | Const' const -> constant_to_string const
-  | Var' var -> var_to_string var
-  | Box' var -> Printf.sprintf "<Box>(%s)" (var_to_string var)
-  | BoxGet' var -> Printf.sprintf "<Box>(%s)" (var_to_string var)
-  | BoxSet' (var, expr') -> Printf.sprintf "(set! <Box>(%s) %s)" (var_to_string var) (expr'_to_string expr')
+  | Var' var -> var_name var
+  | Box' var -> Printf.sprintf "<Box>(%s)" (var_name var)
+  | BoxGet' var -> Printf.sprintf "<Box>(%s)" (var_name var)
+  | BoxSet' (var, expr') -> Printf.sprintf "(set! <Box>(%s) %s)" (var_name var) (expr'_to_string expr')
   | If' (test, dit, dif) -> expr'_list_to_string_with_expr_name "if" [test; dit; dif]
   | Seq' expr'_list -> expr'_list_to_string_with_expr_name "begin" expr'_list
-  | Set' (var, expr') -> Printf.sprintf "(set! %s %s)" (var_to_string var) (expr'_to_string expr')
-  | Def' (var, expr') -> Printf.sprintf "(define %s %s)" (var_to_string var) (expr'_to_string expr')
+  | Set' (var, expr') -> Printf.sprintf "(set! %s %s)" (var_name var) (expr'_to_string expr')
+  | Def' (var, expr') -> Printf.sprintf "(define %s %s)" (var_name var) (expr'_to_string expr')
   | Or' expr'_list -> expr'_list_to_string_with_expr_name "or" expr'_list
 
   | LambdaSimple' (args_list, expr') -> lambda_to_stirng args_list None expr'
@@ -128,3 +136,4 @@ let expr'_to_scheme_code_lookalike = fun expr' ->
   | ApplicTP' (expr', expr'_list) -> Printf.sprintf "<TP>%s" (applic_to_string expr' expr'_list) in
 
   expr'_to_string expr';;
+end;;

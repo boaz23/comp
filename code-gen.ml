@@ -1,5 +1,6 @@
 #use "semantic-analyser.ml";;
 #use "exp_to_string.ml";;
+open ExpString;;
 
 (* This module is here for you convenience only!
    You are not required to use it.
@@ -455,10 +456,10 @@ module Code_Gen : CODE_GEN = struct
 
   let var_to_string = fun var ->
     match var with
-    | VarFree(var_name) -> var_name
-    | VarParam(var_name, minor) -> Printf.sprintf "name: %s , minor %d" var_name minor
+    | VarFree(var_name) -> Printf.sprintf "VarFree %s" var_name
+    | VarParam(var_name, minor) -> Printf.sprintf "VarParam %s, %d" var_name minor
     | VarBound (var_name, major, minor) ->
-       Printf.sprintf "name: %s , major %d, minor %d" var_name major minor;;
+      Printf.sprintf "VarBound %s, major %d, minor %d" var_name major minor;;
 
   let generate_code_wrapper = fun consts_tbl fvars expr' ->
 
@@ -467,7 +468,7 @@ module Code_Gen : CODE_GEN = struct
     let generate_code_for_constant = fun const ->
       let const_index = get_index_of_const_in_const_tbl const consts_tbl in
       let const_code_address = const_table_label ^ " + " ^ (string_of_int const_index) in
-        "mov rax, " ^ const_code_address in
+        Printf.sprintf "mov rax, %s  ; %s" const_code_address (constant_to_string const) in
 
     (*========== Vars get ==========*)
 
@@ -484,16 +485,16 @@ module Code_Gen : CODE_GEN = struct
         "mov rax, qword [" ^ code_adress ^ "]"
       ] in
 
-    let generate_code_for_var_param = fun minor ->
-      let comment = Printf.sprintf ";Get VarParam(%d)" minor in
+    let generate_code_for_var_param = fun var_name minor ->
+      let comment = Printf.sprintf ";Get VarParam(%s, %d)" var_name minor in
       concat_list_of_code
       [
         comment;
         "mov rax, PVAR(" ^ (string_of_int minor) ^ ")"
       ] in
 
-    let generate_code_for_var_bound = fun major minor ->
-      let comment = Printf.sprintf ";Get VarBound(%d, %d)" major minor in
+    let generate_code_for_var_bound = fun var_name major minor ->
+      let comment = Printf.sprintf ";Get VarBound(%s, %d, %d)" var_name major minor in
       concat_list_of_code
       [
         comment;
@@ -505,8 +506,8 @@ module Code_Gen : CODE_GEN = struct
     let generate_code_for_var = fun var ->
       match var with
       | VarFree(var_name) -> generate_code_for_free_var var_name
-      | VarParam(_, minor) -> generate_code_for_var_param minor
-      | VarBound (_, major, minor) -> generate_code_for_var_bound major minor in
+      | VarParam(var_name, minor) -> generate_code_for_var_param var_name minor
+      | VarBound (var_name, major, minor) -> generate_code_for_var_bound var_name major minor in
 
     (*========== Vars set ==========*)
 
@@ -520,8 +521,8 @@ module Code_Gen : CODE_GEN = struct
         "RET_VOID"
       ] in
 
-    let generate_code_for_var_param_set = fun minor ->
-      let comment = Printf.sprintf ";Set VarParam(%d)" minor in
+    let generate_code_for_var_param_set = fun var_name minor ->
+      let comment = Printf.sprintf "Set VarParam(%s, %d)" var_name minor in
       concat_list_of_code
       [
         comment;
@@ -529,8 +530,8 @@ module Code_Gen : CODE_GEN = struct
         "RET_VOID"
       ] in
 
-    let generate_code_for_var_bound_set = fun major minor ->
-      let comment = Printf.sprintf ";Set VarBound(%d, %d)" major minor in
+    let generate_code_for_var_bound_set = fun var_name major minor ->
+      let comment = Printf.sprintf ";Set VarBound(%s, %d, %d)" var_name major minor in
       concat_list_of_code
         [
           comment;
@@ -543,8 +544,8 @@ module Code_Gen : CODE_GEN = struct
     let generate_code_for_set_var = fun var ->
       match var with
       | VarFree(var_name) -> generate_code_for_free_var_set var_name
-      | VarParam(_, minor) -> generate_code_for_var_param_set minor
-      | VarBound (_, major, minor) -> generate_code_for_var_bound_set major minor in
+      | VarParam(var_name, minor) -> generate_code_for_var_param_set var_name minor
+      | VarBound (var_name, major, minor) -> generate_code_for_var_bound_set var_name major minor in
 
     let rec generate_code_for_set = fun var expr' ->
       let generated_code_for_expr' = generate_code expr' in
@@ -798,6 +799,12 @@ module Code_Gen : CODE_GEN = struct
     (*========== Generate code ==========*)
 
     and generate_code = fun expr' ->
+      concat_list_of_code [
+        Printf.sprintf "; %s" (expr'_to_scheme_code_lookalike expr');
+        generate_code_core expr'
+      ]
+
+    and generate_code_core = fun expr' ->
       match expr' with
       | Const'(const) -> generate_code_for_constant const
 
