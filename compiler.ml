@@ -107,7 +107,8 @@ main:
 user_code_fragment:
 ;;; The code you compiled will be added here.
 ;;; It will be executed immediately after the closures for
-;;; the primitive procedures are set up.\n";;
+;;; the primitive procedures are set up.\n
+nop";;
 
 let clean_exit =
   ";;; Clean up the dummy frame, set the exit status to 0 (\"success\"),
@@ -134,19 +135,32 @@ let generate_code_for_asts generate asts =
         (fun ast -> (generate ast) ^ "\n\tcall write_sob_if_not_void")
         asts);;
 
-let shorten_file_path file =
-  let file_path_len = String.length file in
-  let last_dir_sep_index_opt = String.rindex_from_opt file (file_path_len - 1) '/' in
-  match last_dir_sep_index_opt with
-  | Some last_dir_sep_index ->
-    let start_index = last_dir_sep_index + 1 in
-    let sub_len = (file_path_len - last_dir_sep_index - 1) in
-    String.sub file start_index sub_len
-  | None -> file;;
+let str_sub_from_last_char_occur char string =
+  let string_len = String.length string in
+  let last_char_index_opt = String.rindex_from_opt string (string_len - 1) char in
+  match last_char_index_opt with
+  | Some last_char_index ->
+    let start_index = last_char_index + 1 in
+    let sub_len = (string_len - last_char_index - 1) in
+    String.sub string start_index sub_len
+  | None -> string;;
+
+let str_sub_up_to_last_char_occur char string =
+  let string_len = String.length string in
+  let last_char_index_opt = String.rindex_from_opt string (string_len - 1) char in
+  match last_char_index_opt with
+  | Some last_char_index -> String.sub string 0 last_char_index
+  | None -> string;;
+
+let shorten_file_path = str_sub_from_last_char_occur '/';;
+let file_name_without_ext = str_sub_up_to_last_char_occur '.';;
+
 
 let generate_code_for_file_asts generate file asts =
   let short_file_name = shorten_file_path file in
-  Printf.sprintf ";file: %s\n%s" short_file_name (generate_code_for_asts generate asts);;
+  let file_name_without_ext = file_name_without_ext short_file_name in
+  let asm_code = generate_code_for_asts generate asts in
+  Printf.sprintf ";file: %s\n%s:\n%s" short_file_name file_name_without_ext asm_code;;
 
 let generate_code_for_files_asts generate files files_asts =
   let files_asm_code = List.map2
