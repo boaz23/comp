@@ -232,18 +232,17 @@ module Code_Gen : CODE_GEN = struct
     snd (snd const_tuple);;
 
   let build_consts_tbl_from_const_list = fun const_list ->
-    let rec build_consts_tbl_rec = fun const_list tuple_const_list index ->
+    let rec build_consts_tbl_rec = fun const_list tuple_const_list offset ->
       match const_list with
       | [] -> tuple_const_list
       | const :: rest -> (
-        let const_asm_code = make_asm_code const tuple_const_list index in
-        let const_sob_size =  get_sob_size_of_const const in
-        let const_index = index + const_sob_size in
+        let next_start_offest = offset + (get_sob_size_of_const const) in
         let const_asm_code =
-          let comment = Printf.sprintf "; offset %d, %s" index (constant_to_string const) in
-          Printf.sprintf "%s %s" const_asm_code comment in
-        let const_tuple = (const, (index, const_asm_code)) in
-         build_consts_tbl_rec rest (tuple_const_list @ [const_tuple]) const_index
+          let code = make_asm_code const tuple_const_list in
+          let comment = Printf.sprintf "; offset %d, %s" offset (constant_to_string const) in
+          Printf.sprintf "%s %s" code comment in
+        let const_tuple = (const, (offset, const_asm_code)) in
+         build_consts_tbl_rec rest (tuple_const_list @ [const_tuple]) next_start_offest
       )
 
     and get_tuple_of_const_from_tbl = fun const const_tbl ->
@@ -255,7 +254,7 @@ module Code_Gen : CODE_GEN = struct
         )
         const_tbl
 
-    and make_asm_code_number_from_const_tbl = fun number index ->
+    and make_asm_code_number_from_const_tbl = fun number ->
       match number with
       | Fraction(num, den) -> make_literal_rational_asm_code num den
       | Float(float) -> make_literal_float_asm_code float
@@ -273,7 +272,7 @@ module Code_Gen : CODE_GEN = struct
       let cdr_index = get_index_from_const_tuple cdr_tuple in
         make_literal_pair_asm_code car_index cdr_index
 
-    and make_asm_code =  fun const current_tuple_const_tbl index ->
+    and make_asm_code =  fun const current_tuple_const_tbl ->
       match const with
       | Void -> make_literal_void_asm_code
       | Sexpr(sexpr) -> (
@@ -281,7 +280,7 @@ module Code_Gen : CODE_GEN = struct
         | Nil -> make_literal_nil_asm_code
         | Bool(bool) -> make_literal_bool_asm_code bool
         | Number(number) ->
-            make_asm_code_number_from_const_tbl number index
+            make_asm_code_number_from_const_tbl number
         | Char(ch) -> make_literal_char_asm_code ch
         | String(string) ->
             make_literal_string_asm_code string
