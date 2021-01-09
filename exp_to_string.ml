@@ -27,12 +27,17 @@ let sexpr_string_to_string = fun s ->
       | '\012' -> ['\\'; 'f']
       | '\n' -> ['\\'; 'n']
       | '\r' -> ['\\'; 'r']
-      | _ -> [c] in
+      | _ -> (
+        let char_code = Char.code c in
+        if char_code < 32 then
+          let hex = Printf.sprintf "\\x%02x" char_code in
+          string_to_list hex
+        else [c]
+      ) in
       l @ acc)
     chars_list
     [] in
-  let s = list_to_string chars_list in
-  String.escaped s;;
+  list_to_string chars_list;;
 
 let rec sexpr_pair_to_string = fun pair ->
   let f_pair_inner = fun (acc, is_first) sexpr ->
