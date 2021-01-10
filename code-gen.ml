@@ -416,6 +416,7 @@ module Code_Gen : CODE_GEN = struct
   (*========== General code ==========*)
 
   let concat_list_of_code = fun list -> String.concat "\n" list;;
+  let format_label = fun prefix name -> Printf.sprintf "%s%s:" prefix name;;
 
   let comment_indexer = ref(0);;
   let comment_index () =
@@ -439,7 +440,7 @@ module Code_Gen : CODE_GEN = struct
   let lambda_label_prefix = ref(".lambda_global_");;
   let current_lambda_label_prefix = fun () -> !lambda_label_prefix;;
   let set_lambda_label_prefix = fun value -> lambda_label_prefix := value;;
-  let format_lambda_label = fun name -> Printf.sprintf "%s%s:" (current_lambda_label_prefix ()) name;;
+  let format_lambda_label = fun name -> format_label (current_lambda_label_prefix ()) name;;
 
   let enclosing_labmda_param_vars_ref = ref(0);;
   let get_enclosing_labmda_param_vars = fun () ->
@@ -770,20 +771,34 @@ module Code_Gen : CODE_GEN = struct
 
     (*========== Applic ==========*)
 
-    and generate_code_for_applic_core = fun operator_expr' operands_expr'_list ->
+    and generate_code_for_applic_core = fun label_prefix operator_expr' operands_expr'_list ->
       let prepare_frame =
+        let start_label = [format_label label_prefix "push_args"; "nop"] in
+        let arg_index_ref = ref(0) in
         let push_args =
           List.fold_left
-          (fun acc expr' -> generate_code expr' :: "push rax" :: acc )
+          (fun acc expr' ->
+            let push_arg_code = [
+              format_label label_prefix (Printf.sprintf "push_arg_%d" !arg_index_ref);
+              generate_code expr';
+              "push rax"
+            ] in
+            arg_index_ref := !arg_index_ref + 1;
+            push_arg_code @ acc )
           []
           operands_expr'_list in
         let push_rest = [
+          format_label label_prefix "push_args_count";
           "push " ^ (string_of_int (List.length operands_expr'_list));
+          format_label label_prefix "operator_code";
+          "nop";
           generate_code operator_expr';
+          format_label label_prefix "push_env";
           "push qword [rax + TYPE_SIZE]"
         ] in
-        push_args @ push_rest in
+        start_label @ push_args @ push_rest in
       let frame_cleanup = [
+        format_label label_prefix "frame_cleanup";
         "add rsp, WORD_SIZE  ; pop env";
         "pop rbx  ; pop args count";
         "shl rbx, 3  ; rbx = rbx * 8";
@@ -792,29 +807,38 @@ module Code_Gen : CODE_GEN = struct
       (prepare_frame, frame_cleanup)
 
     and generate_code_for_applic = fun operator_expr' operands_expr'_list ->
-      let comment =
-        let inner_comment_index = comment_index () in
-        Printf.sprintf "applic #" ^ inner_comment_index in
-      let (prepare_frame, frame_cleanup) = generate_code_for_applic_core operator_expr' operands_expr'_list in
-      let call_code = "call [rax + TYPE_SIZE + WORD_SIZE]" in
-      comment, concat_list_of_code (prepare_frame @ [call_code] @ frame_cleanup)
+      let applic_id = comment_index () in
+      let comment = Printf.sprintf "applic #" ^ applic_id in
+      let debug_label_prefix = Printf.sprintf ".applic_normal_%s_" applic_id in
+
+      let (prepare_frame, frame_cleanup) = generate_code_for_applic_core debug_label_prefix operator_expr' operands_expr'_list in
+      let call_code = [
+        format_label debug_label_prefix "call_op";
+        "call [rax + TYPE_SIZE + WORD_SIZE]"
+      ] in
+      comment, concat_list_of_code (prepare_frame @ call_code @ frame_cleanup)
 
     and generate_code_for_applictp = fun operator_expr' operands_expr'_list ->
-      let comment =
-        let inner_comment_index = comment_index () in
-        Printf.sprintf "applic TP #" ^ inner_comment_index in
-      let (prepare_frame, frame_cleanup) = generate_code_for_applic_core operator_expr' operands_expr'_list in
+      let applic_id = comment_index () in
+      let comment = Printf.sprintf "applic TP #" ^ applic_id in
+      let debug_label_prefix = Printf.sprintf ".applic_TP_%s_" applic_id in
+
+      let (prepare_frame, frame_cleanup) = generate_code_for_applic_core debug_label_prefix operator_expr' operands_expr'_list in
       let call_code =
         let enclosing_labmda_param_vars = get_enclosing_labmda_param_vars () in
         let operands_amount = List.length operands_expr'_list in
         let new_frame_size = operands_amount + 4 in [
+          format_label debug_label_prefix "fix_frame";
           "push RET_ADDR  ;push old ret address";
           "push OLD_RBP ;save the old RBP pointer";
+          format_label debug_label_prefix "copy_new_frame";
           "lea rbx, [rbp - WORD_SIZE] ;set rbx to point the top of the new frame";
           "lea rsp, [rbp + WORD_SIZE*(3 + " ^ (string_of_int enclosing_labmda_param_vars) ^ ")] ; set rsp to point to the top of the old frame";
           "COPY_ARRAY_STATIC rbx, rsp, " ^ (string_of_int new_frame_size) ^ ", rcx, 0, 0, -1, -1";
+          format_label debug_label_prefix "fix_frame_pointers";
           "lea rsp, [rbp+WORD_SIZE*(" ^ (string_of_int (-(operands_amount - enclosing_labmda_param_vars) + 1)) ^ ")] ;setup the stack pointer for the new function. it point to the return address right now";
           "mov rbp, [rsp - WORD_SIZE] ;restore the old RBP pointer";
+          format_label debug_label_prefix "call_op";
           "jmp [rax + TYPE_SIZE + WORD_SIZE]"
         ] in
       comment, concat_list_of_code (prepare_frame @ call_code @ frame_cleanup)
