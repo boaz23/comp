@@ -1,3 +1,13 @@
+# ignore files without extension, namely executables
+*
+!/**/
+!*.*
+
+# executables, binaries and compilation file
+!makefile*
+*.o
+*.s
+
 #OCaml stuff
 *.ml.swp
 *.ml.save
@@ -5,7 +15,6 @@
 readme.txt
 TODO.txt
 
+# misc
 extra_stuff/*
 temp/*
-*.o
-*.s
