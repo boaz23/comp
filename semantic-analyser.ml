@@ -185,7 +185,7 @@ let annotate_tail_calls_helper = fun e ->
     LambdaOpt' (req_arg_names, opt_arg_name, annotated_body_expr')
 
   and annotate_applic = fun operator_expr' operands_expr'_list is_in_tp ->
-    let annotate_expr'_operator = annotate_traversal operator_expr' is_in_tp in
+    let annotate_expr'_operator = annotate_traversal operator_expr' false in
     let annotate_exprs'_operands = annotate_list_not_in_tail_pos operands_expr'_list in
     if is_in_tp
     then ApplicTP' (annotate_expr'_operator, annotate_exprs'_operands)
@@ -525,7 +525,7 @@ let annotate_boxes_helper = fun e ->
 
 let annotate_lexical_addresses e = annotate_lexical_addresses_helper e;;
 
-let annotate_tail_calls e = annotate_tail_calls_helper e;;
+let annotate_tail_calls e =annotate_tail_calls_helper e;;
 
 let box_set e = annotate_boxes_helper e;;
 
