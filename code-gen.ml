@@ -423,7 +423,11 @@ module Code_Gen : CODE_GEN = struct
 
   (*========== General code ==========*)
 
-  let concat_list_of_code = fun list -> String.concat "\n" list;;
+  let concat_list_of_code = fun lines ->
+    let lines = if debug then lines
+    else List.filter (fun line -> line <> "") lines in
+    String.concat "\n" lines;;
+  let generate_debug_nop = fun () -> if debug then "nop" else "";;
   let format_debug_label = fun append_nop name ->
     if debug then
       let label = name  ^ ":" in
@@ -710,8 +714,8 @@ module Code_Gen : CODE_GEN = struct
         "leave";
         "ret";
         lcont_label_name ^ ":";
-        "nop";
-        Printf.sprintf "%scont%s:" enclosing_label_prefix enclosing_cont_index
+        generate_debug_nop ();
+        format_label_with_nop enclosing_label_prefix enclosing_cont_index
       ] in
       let comment = Printf.sprintf "lambda %s #%d with %d args" kind lambda_id number_of_args in
 
@@ -774,7 +778,7 @@ module Code_Gen : CODE_GEN = struct
 
           "jmp .stack_adjustment_done";
           ".no_opt_arg:";
-          if debug then "nop" else "";
+          generate_debug_nop ();
           format_debug_label ".pull_stack_one_downwards";
           "lea rsi, [rbp - WORD_SIZE]";
           "COPY_ARRAY_STATIC rbp, rsi, " ^ (string_of_int (4 + number_of_required_args)) ^ ", rcx";
