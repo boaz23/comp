@@ -1,6 +1,8 @@
 #use "semantic-analyser.ml";;
 #use "exp_to_string.ml";;
+#use "config.ml";;
 open ExpString;;
+open CompConfig;;
 
 (* This module is here for you convenience only!
    You are not required to use it.
@@ -34,8 +36,6 @@ module type CODE_GEN = sig
 end;;
 
 module Code_Gen : CODE_GEN = struct
-
-let debug = true;;
 
 (*
 ============== Const table ==============
@@ -372,17 +372,23 @@ let debug = true;;
     | ApplicTP'(operator_expr', operands_expr'_list) ->
         extract_fvar_names_from_expr'_list (operator_expr' :: operands_expr'_list);;
 
-  let reserved_fvar_list = [
-    "+"; "-"; "*"; "/"; "<"; "="; ">";
-    "append"; "apply"; "boolean?"; "car"; "cdr";
-    "char->integer"; "char?"; "cons"; "cons*"; "denominator";
-    "eq?"; "equal?"; "exact->inexact"; "flonum?"; "fold-left";
-    "fold-right"; "gcd"; "integer?"; "integer->char"; "length";
-    "list"; "list?"; "make-string"; "map"; "not"; "null?"; "number?";
-    "numerator"; "pair?"; "procedure?"; "rational?"; "set-car!";
-    "set-cdr!"; "string->list"; "string-length"; "string-ref";
-    "string-set!"; "string?"; "symbol?"; "zero?"; "symbol->string"
-  ];;
+  let reserved_fvar_list =
+    let reserved_fvar_list_core = [
+      "+"; "-"; "*"; "/"; "<"; "="; ">";
+      "append"; "apply"; "boolean?"; "car"; "cdr";
+      "char->integer"; "char?"; "cons"; "cons*"; "denominator";
+      "eq?"; "equal?"; "exact->inexact"; "flonum?"; "fold-left";
+      "fold-right"; "gcd"; "integer?"; "integer->char"; "length";
+      "list"; "list?"; "make-string"; "map"; "not"; "null?"; "number?";
+      "numerator"; "pair?"; "procedure?"; "rational?"; "set-car!";
+      "set-cdr!"; "string->list"; "string-length"; "string-ref";
+      "string-set!"; "string?"; "symbol?"; "zero?"; "symbol->string"
+    ] in
+    if not debug then reserved_fvar_list_core
+    else let debug_fvar_list = [
+      "display"
+    ] in
+    reserved_fvar_list_core @ debug_fvar_list;;
 
   let get_index_in_fvars_tbl = fun fvar_name fvars_tbl ->
     List.assoc fvar_name fvars_tbl;;

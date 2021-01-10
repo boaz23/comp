@@ -1,5 +1,6 @@
 #use "code-gen.ml";;
 #use "prims.ml";;
+#use "config.ml";;
 
 (*
    Auxiliary function to load the contents of a file into a string in memory.
@@ -20,28 +21,35 @@ let make_prologue consts_tbl fvars_tbl =
   (* The table defines a mapping from the names of primitive procedures in scheme to their labels in
      the assembly implementation. *)
   let primitive_names_to_labels =
-  [
-    (* Type queries  *)
-    "boolean?", "boolean?"; "flonum?", "flonum?"; "rational?", "rational?";
-    "pair?", "pair?"; "null?", "null?"; "char?", "char?"; "string?", "string?";
-    "procedure?", "procedure?"; "symbol?", "symbol?";
-    (* String procedures *)
-    "string-length", "string_length"; "string-ref", "string_ref"; "string-set!", "string_set";
-    "make-string", "make_string"; "symbol->string", "symbol_to_string";
-    (* Type conversions *)
-    "char->integer", "char_to_integer"; "integer->char", "integer_to_char"; "exact->inexact", "exact_to_inexact";
-    (* Identity test *)
-    "eq?", "eq?";
-    (* Arithmetic ops *)
-    "+", "add"; "*", "mul"; "/", "div"; "=", "eq"; "<", "lt";
-    (* Additional rational numebr ops *)
-    "numerator", "numerator"; "denominator", "denominator"; "gcd", "gcd";
-    (* you can add yours here *)
-    (* Pair procedures *)
-    "car", "car"; "cdr", "cdr"; "set-car!", "set_car"; "set-cdr!", "set_cdr"; "cons", "cons";
-    (* apply *)
-    "apply", "apply"
-  ] in
+    let primitive_names_to_labels =
+    [
+      (* Type queries  *)
+      "boolean?", "boolean?"; "flonum?", "flonum?"; "rational?", "rational?";
+      "pair?", "pair?"; "null?", "null?"; "char?", "char?"; "string?", "string?";
+      "procedure?", "procedure?"; "symbol?", "symbol?";
+      (* String procedures *)
+      "string-length", "string_length"; "string-ref", "string_ref"; "string-set!", "string_set";
+      "make-string", "make_string"; "symbol->string", "symbol_to_string";
+      (* Type conversions *)
+      "char->integer", "char_to_integer"; "integer->char", "integer_to_char"; "exact->inexact", "exact_to_inexact";
+      (* Identity test *)
+      "eq?", "eq?";
+      (* Arithmetic ops *)
+      "+", "add"; "*", "mul"; "/", "div"; "=", "eq"; "<", "lt";
+      (* Additional rational numebr ops *)
+      "numerator", "numerator"; "denominator", "denominator"; "gcd", "gcd";
+      (* you can add yours here *)
+      (* Pair procedures *)
+      "car", "car"; "cdr", "cdr"; "set-car!", "set_car"; "set-cdr!", "set_cdr"; "cons", "cons";
+      (* apply *)
+      "apply", "apply"
+    ] in
+    if CompConfig.debug then
+      let debug_prims = [
+        "display", "display"
+      ] in
+      primitive_names_to_labels @ debug_prims
+    else primitive_names_to_labels in
   let make_primitive_closure (prim, label) =
     (* This implementation assumes fvars are addressed by an offset from the label `fvar_tbl`.
        If you use a different addressing scheme (e.g., a label for each fvar), change the
