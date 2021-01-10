@@ -439,6 +439,7 @@ module Code_Gen : CODE_GEN = struct
   let lambda_label_prefix = ref(".lambda_global_");;
   let current_lambda_label_prefix = fun () -> !lambda_label_prefix;;
   let set_lambda_label_prefix = fun value -> lambda_label_prefix := value;;
+  let format_lambda_label = fun name -> Printf.sprintf "%s%s:" (current_lambda_label_prefix ()) name;;
 
   let enclosing_labmda_param_vars_ref = ref(0);;
   let get_enclosing_labmda_param_vars = fun () ->
@@ -668,23 +669,23 @@ module Code_Gen : CODE_GEN = struct
       let code = concat_list_of_code
       [
         "; in depth " ^ (string_of_int env_depth);
-        Printf.sprintf "%sextend_env:" debug_labels_prefix;
+        format_lambda_label "extend_env";
         "MALLOC rcx, WORD_SIZE*" ^ (string_of_int (env_depth+1));
         "mov rbx, ENV";
         "COPY_ARRAY_STATIC rbx, rcx, " ^ (string_of_int (env_depth)) ^ ", rax, 0, 1";
-        Printf.sprintf "%scopy_enclosing_params_to_env:" debug_labels_prefix;
+        format_lambda_label "copy_enclosing_params_to_env";
         "MALLOC rbx, WORD_SIZE*" ^ (string_of_int enclosing_labmda_param_vars);
         "mov qword [rcx], rbx";
         "PVAR_ADDR(rax, 0)";
         "COPY_ARRAY_STATIC rax, rbx, " ^ (string_of_int enclosing_labmda_param_vars) ^ ", rdx";
-        Printf.sprintf "%smake_closure:" debug_labels_prefix;
+        format_lambda_label "make_closure";
         "MAKE_CLOSURE(rax, rcx, " ^ lcode_label_name ^ ")";
-        Printf.sprintf "%sskip_body:" debug_labels_prefix;
+        format_lambda_label "skip_body";
         "jmp " ^ lcont_label_name;
         lcode_label_name ^ ":";
         "push rbp";
         "mov rbp, rsp";
-        generate_body lambda_id;
+        generate_body ();
         generate_code body_expr';
         "leave";
         "ret";
@@ -701,20 +702,22 @@ module Code_Gen : CODE_GEN = struct
 
     and generate_code_for_lambda_simple = fun arg_names body_expr' ->
       let number_of_args = List.length arg_names in
-      let body_fun_code = (fun lambda_id -> "") in
+      let body_fun_code = (fun () -> "") in
       generate_code_for_lambda "simple" body_expr' body_fun_code number_of_args
 
     and generate_code_for_lambda_opt = fun arg_names opt_arg_name body_expr' ->
       let number_of_required_args = List.length arg_names in
       let number_of_args = number_of_required_args + 1 in
       let body_fun_code =
-      (fun lambda_id ->
+      (fun () ->
         concat_list_of_code
         [
+          ".check_if_opt_given:";
           "mov r8, PARAMS_COUNT";
           "cmp r8, " ^ (string_of_int number_of_required_args);
           "je .no_opt_arg";
 
+          ".with_opt_arg:";
           "mov rbx, SOB_NIL_ADDRESS";
           "PVAR_ADDR(rsi, r8-1)";
           "PVAR_ADDR(rdi, " ^ (string_of_int (number_of_required_args - 1)) ^ ")";
@@ -731,7 +734,9 @@ module Code_Gen : CODE_GEN = struct
 
           "jmp .build_list_s";
           ".build_list_e:";
+          "nop";
 
+          ".pull_stack_upwards:";
           "mov PVAR(r8-1), rbx";
           "PVAR_ADDR(rsi, r8-2)";
           "PVAR_ADDR(rdi, " ^ (string_of_int (number_of_required_args - 1)) ^ ")";
@@ -742,15 +747,20 @@ module Code_Gen : CODE_GEN = struct
           "mov rdx, " ^ (string_of_int (4 + number_of_required_args));
           "call copy_array_backward";
 
+          ".fix_stack_pointers_with_opt:";
           "add rsp, r9";
           "mov rbp, rsp";
 
           "jmp .stack_adjustment_done";
           ".no_opt_arg:";
+          "nop";
+          ".pull_stack_one_downwards:";
           "lea rsi, [rbp - WORD_SIZE]";
           "COPY_ARRAY_STATIC rbp, rsi, " ^ (string_of_int (4 + number_of_required_args)) ^ ", rcx";
+          ".fix_stack_pointers_no_opt:";
           "mov rbp, rsi";
           "mov rsp, rbp";
+          ".set_opt_nil:";
           "mov PVAR(" ^ (string_of_int number_of_required_args) ^ "), SOB_NIL_ADDRESS";
           ".stack_adjustment_done:";
           "mov PARAMS_COUNT, " ^ (string_of_int number_of_args)
