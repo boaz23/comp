@@ -743,7 +743,7 @@ module Code_Gen : CODE_GEN = struct
           "PVAR_ADDR(rsi, r8-1)";
           "PVAR_ADDR(rdi, " ^ (string_of_int (number_of_required_args - 1)) ^ ")";
 
-          format_debug_label ".build_list_s";
+          ".build_list_s:";
           "cmp rsi, rdi";
           "je .build_list_e";
 

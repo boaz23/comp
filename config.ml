@@ -5,6 +5,6 @@ end;;
 
 module CompConfig : COMP_CONFIG = struct
 
-let debug = true;;
+let debug = false;;
 
 end;;
