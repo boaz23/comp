@@ -431,25 +431,24 @@ module Code_Gen : CODE_GEN = struct
     exit_indexer := !exit_indexer + 1;
     Printf.sprintf "Lexit%d" !exit_indexer;;
 
-  let lambda_code_indexer = ref(0);;
-  let lcode_label () =
-    lambda_code_indexer := !lambda_code_indexer + 1;
-    Printf.sprintf "Lcode%d" !lambda_code_indexer;;
+  let lambda_id_ref = ref(0);;
+  let next_lambda_id = fun () ->
+    lambda_id_ref := !lambda_id_ref + 1;
+    !lambda_id_ref;;
 
-  let lambda_code_cont_indexer = ref(0);;
-  let lcont_label () =
-    lambda_code_cont_indexer := !lambda_code_cont_indexer + 1;
-    Printf.sprintf "Lcont%d" !lambda_code_cont_indexer;;
-
-  let env_depth_ref = ref(-1);;
-  let inc_env_depth () =  env_depth_ref := !env_depth_ref + 1;;
-  let dec_env_depth () =  env_depth_ref := !env_depth_ref - 1;;
+  let lambda_label_prefix = ref(".lambda_global_");;
+  let current_lambda_label_prefix = fun () -> !lambda_label_prefix;;
+  let set_lambda_label_prefix = fun value -> lambda_label_prefix := value;;
 
   let enclosing_labmda_param_vars_ref = ref(0);;
   let get_enclosing_labmda_param_vars = fun () ->
     !enclosing_labmda_param_vars_ref;;
   let set_enclosing_labmda_param_vars = fun value ->
     enclosing_labmda_param_vars_ref := value;;
+
+  let env_depth_ref = ref(-1);;
+  let inc_env_depth () =  env_depth_ref := !env_depth_ref + 1;;
+  let dec_env_depth () =  env_depth_ref := !env_depth_ref - 1;;
 
   let var_to_string = fun var ->
     match var with
@@ -651,55 +650,65 @@ module Code_Gen : CODE_GEN = struct
 
     (*========== Lambda ==========*)
 
-    and generate_code_for_lambda = fun comment generate_body number_of_args  ->
+    and generate_code_for_lambda = fun kind body_expr' generate_body number_of_args  ->
       inc_env_depth ();
 
       let env_depth = !env_depth_ref in
       let enclosing_labmda_param_vars = get_enclosing_labmda_param_vars () in
       set_enclosing_labmda_param_vars number_of_args;
-      let lcode_label_name = lcode_label () in
-      let lcont_label_name = lcont_label () in
+
+      let lambda_id = next_lambda_id () in
+      let enclosing_label_prefix = current_lambda_label_prefix () in
+      let enclosing_cont_index = comment_index () in
+      let debug_labels_prefix = Printf.sprintf ".lambda_%s_%d_" kind lambda_id in
+      set_lambda_label_prefix debug_labels_prefix;
+
+      let lcode_label_name = Printf.sprintf "Lcode%d" lambda_id in
+      let lcont_label_name = Printf.sprintf "Lcont%d" lambda_id in
       let code = concat_list_of_code
       [
         "; in depth " ^ (string_of_int env_depth);
+        Printf.sprintf "%sextend_env:" debug_labels_prefix;
         "MALLOC rcx, WORD_SIZE*" ^ (string_of_int (env_depth+1));
         "mov rbx, ENV";
         "COPY_ARRAY_STATIC rbx, rcx, " ^ (string_of_int (env_depth)) ^ ", rax, 0, 1";
+        Printf.sprintf "%scopy_enclosing_params_to_env:" debug_labels_prefix;
         "MALLOC rbx, WORD_SIZE*" ^ (string_of_int enclosing_labmda_param_vars);
         "mov qword [rcx], rbx";
         "PVAR_ADDR(rax, 0)";
         "COPY_ARRAY_STATIC rax, rbx, " ^ (string_of_int enclosing_labmda_param_vars) ^ ", rdx";
+        Printf.sprintf "%smake_closure:" debug_labels_prefix;
         "MAKE_CLOSURE(rax, rcx, " ^ lcode_label_name ^ ")";
+        Printf.sprintf "%sskip_body:" debug_labels_prefix;
         "jmp " ^ lcont_label_name;
         lcode_label_name ^ ":";
         "push rbp";
         "mov rbp, rsp";
-        generate_body ();
+        generate_body lambda_id;
+        generate_code body_expr';
         "leave";
         "ret";
-        lcont_label_name ^ ":"
+        lcont_label_name ^ ":";
+        "nop";
+        Printf.sprintf "%scont%s:" enclosing_label_prefix enclosing_cont_index
       ] in
+      let comment = Printf.sprintf "lambda %s #%d with %d args" kind lambda_id number_of_args in
 
+      set_lambda_label_prefix enclosing_label_prefix;
       set_enclosing_labmda_param_vars enclosing_labmda_param_vars;
       dec_env_depth ();
       comment, code
 
     and generate_code_for_lambda_simple = fun arg_names body_expr' ->
       let number_of_args = List.length arg_names in
-      let body_fun_code = (fun () -> generate_code body_expr') in
-      let comment =
-        let inner_comment_index = comment_index () in
-        Printf.sprintf "lambda simple #%s with %d args" inner_comment_index number_of_args in
-      generate_code_for_lambda comment body_fun_code number_of_args
+      let body_fun_code = (fun lambda_id -> "") in
+      generate_code_for_lambda "simple" body_expr' body_fun_code number_of_args
 
     and generate_code_for_lambda_opt = fun arg_names opt_arg_name body_expr' ->
       let number_of_required_args = List.length arg_names in
       let number_of_args = number_of_required_args + 1 in
-      let comment =
-        let inner_comment_index = comment_index () in
-        Printf.sprintf "lambda opt #%s with %d args" inner_comment_index number_of_args in
       let body_fun_code =
-      (fun () ->
+      (fun lambda_id ->
         concat_list_of_code
         [
           "mov r8, PARAMS_COUNT";
@@ -744,11 +753,10 @@ module Code_Gen : CODE_GEN = struct
           "mov rsp, rbp";
           "mov PVAR(" ^ (string_of_int number_of_required_args) ^ "), SOB_NIL_ADDRESS";
           ".stack_adjustment_done:";
-          "mov PARAMS_COUNT, " ^ (string_of_int number_of_args);
-          generate_code body_expr'
+          "mov PARAMS_COUNT, " ^ (string_of_int number_of_args)
         ]
       ) in
-      generate_code_for_lambda comment body_fun_code number_of_args
+      generate_code_for_lambda "opt" body_expr' body_fun_code number_of_args
 
     (*========== Applic ==========*)
 
@@ -854,4 +862,3 @@ module Code_Gen : CODE_GEN = struct
   let generate consts fvars e =
     generate_code_wrapper consts fvars e;;
 end;;
-

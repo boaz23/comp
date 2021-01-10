@@ -161,7 +161,7 @@ let generate_code_for_file_asts generate file asts =
   let short_file_name = shorten_file_path file in
   let file_name_without_ext = file_name_without_ext short_file_name in
   let asm_code = generate_code_for_asts generate asts in
-  Printf.sprintf ";file: %s\nfile_%s:\n%s" short_file_name file_name_without_ext asm_code;;
+  Printf.sprintf ";file: %s\nfile_%s:\nnop\n%s" short_file_name file_name_without_ext asm_code;;
 
 let generate_code_for_files_asts generate files files_asts =
   let files_asm_code = List.map2
