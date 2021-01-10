@@ -91,7 +91,7 @@ let constant_to_string = function
 let var_to_string = fun var ->
   match var with
   | VarFree var_name -> Printf.sprintf "VarFree \"%s\"" var_name
-  | VarParam (var_name, var_pos) -> Printf.sprintf "VarParam (\"%s\", %d))" var_name var_pos
+  | VarParam (var_name, var_pos) -> Printf.sprintf "VarParam (\"%s\", %d)" var_name var_pos
   | VarBound (var_name, major, minor) -> Printf.sprintf "VarBound (\"%s\", %d, %d)" var_name major minor;;
 
 let expr'_to_string = fun expr' ->
