@@ -199,10 +199,10 @@ let generate_code_from_files files_list =
   let generate = Code_Gen.generate consts_tbl fvars_tbl in
   let code_fragment = generate_code_for_files_asts generate files_list files_asts in
 
+  let prologue = make_prologue consts_tbl fvars_tbl in
+
   (* merge everything into a single large string and print it out *)
-  print_string ((make_prologue consts_tbl fvars_tbl)  ^
-                  code_fragment ^ clean_exit ^
-                    "\n" ^ Prims.procs);;
+  print_string (prologue  ^ code_fragment ^ clean_exit ^ "\n" ^ Prims.procs);;
 
 try
 
