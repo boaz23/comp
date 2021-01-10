@@ -94,55 +94,84 @@ let var_to_string = fun var ->
   | VarParam (var_name, var_pos) -> Printf.sprintf "VarParam (\"%s\", %d))" var_name var_pos
   | VarBound (var_name, major, minor) -> Printf.sprintf "VarBound (\"%s\", %d, %d)" var_name major minor;;
 
-let rec expr'_list_to_string = fun expr's_list ->
-  let (s, _) =
-    List.fold_right
-      (fun expr' (acc, is_last) ->
-        let expr'_string = expr'_to_string expr' in
-        let new_acc =
-          if is_last then expr'_string
-          else Printf.sprintf "%s; %s" expr'_string acc in
-        (new_acc, false))
-      expr's_list
-      ("", true) in
-  Printf.sprintf "[%s]" s
+let expr'_to_string = fun expr' ->
+  let current_indentation_ref = ref("") in
+  let next_indentation_ref = ref("") in
+  let current_indentation () = !current_indentation_ref in
+  let next_indentation () = !next_indentation_ref in
+  let set_current_indentation value = current_indentation_ref := value in
+  let set_next_indentation value = next_indentation_ref := value in
+  let indent () =
+    let new_current_indentation = next_indentation () in
+    let new_next_indentation = new_current_indentation ^ "  " in
+    set_next_indentation new_next_indentation;
+    set_current_indentation new_current_indentation;
+    new_current_indentation in
+  let restore_indentation prev_indentation =
+    set_next_indentation (current_indentation ());
+    set_current_indentation prev_indentation in
+  let do_indentation = fun f ->
+    let current_indentation = current_indentation () in
+    let next_indentation = indent () in
+    let s = f next_indentation in
+    restore_indentation current_indentation;
+    s in
 
-and lambda_to_stirng = fun lambda_name args_list arg_opt expr' ->
-  let args_list = List.map (fun s -> "\"" ^ s ^ "\"") args_list in
-  let args_list_s = String.concat "; " args_list in
-  let args_list_s = "[" ^ args_list_s ^ "]" in
-  let expr'_s = expr'_to_string expr' in
-  let arg_opt_s =
-    if arg_opt <> ""
-    then ", \"" ^ arg_opt ^ "\""
-    else "" in
-  Printf.sprintf "%s (%s%s, (%s))" lambda_name args_list_s arg_opt_s expr'_s
+  let rec expr'_list_to_string = fun expr's_list ->
+    do_indentation (fun indentation ->
+      let (s, _) =
+        List.fold_right
+          (fun expr' (acc, is_last) ->
+            let expr'_string = "\n" ^ expr'_to_string expr' in
+            let new_acc =
+              if is_last then expr'_string
+              else Printf.sprintf "%s;%s" expr'_string acc in
+            (new_acc, false))
+          expr's_list
+          ("", true) in
+      Printf.sprintf "[%s\n%s]" s indentation)
 
-and applic_to_string = fun applic_name expr' expr'_list ->
-  let expr'_s = expr'_to_string expr' in
-  let expr'_list_s = expr'_list_to_string expr'_list in
-  Printf.sprintf "%s (%s, %s)" applic_name expr'_s expr'_list_s
+  and lambda_to_stirng = fun lambda_name args_list arg_opt expr' indentation ->
+    let args_list = List.map (fun s -> "\"" ^ s ^ "\"") args_list in
+    let args_list_s = String.concat "; " args_list in
+    let args_list_s = "[" ^ args_list_s ^ "]" in
+    let expr'_s = expr'_to_string expr' in
+    let arg_opt_s =
+      if arg_opt <> ""
+      then Printf.sprintf ",\n%s  \"%s\"" indentation arg_opt
+      else "" in
+    Printf.sprintf "%s(%s (\n%s  %s%s, \n%s\n%s))" indentation lambda_name indentation args_list_s arg_opt_s expr'_s indentation
 
-and expr'_to_string = function
-  | Const' const -> Printf.sprintf "Const' %s" (constant_to_string const)
-  | Var' var -> Printf.sprintf "Var' (%s)" (var_to_string var)
-  | Box' var -> Printf.sprintf "Box' (%s)" (var_to_string var)
-  | BoxGet' var -> Printf.sprintf "BoxGet' (%s)" (var_to_string var)
-  | BoxSet' (var, expr') -> Printf.sprintf "BoxSet' ((%s), (%s))" (var_to_string var) (expr'_to_string expr')
-  | If' (test, dit, dif) ->
-    let s_test = expr'_to_string test in
-    let s_dit = expr'_to_string dit in
-    let s_dif = expr'_to_string dif in
-    Printf.sprintf "(If' ((%s), (%s), (%s)))" s_test s_dit s_dif
-  | Seq' expr'_list -> Printf.sprintf "(Seq' %s)" (expr'_list_to_string expr'_list)
-  | Set' (var, expr') -> Printf.sprintf "(Set' ((%s), (%s)))" (var_to_string var) (expr'_to_string expr')
-  | Def' (var, expr') -> Printf.sprintf "(Def' ((%s), (%s)))" (var_to_string var) (expr'_to_string expr')
-  | Or' expr'_list -> Printf.sprintf "(Or' %s)" (expr'_list_to_string expr'_list)
+  and applic_to_string = fun applic_name expr' expr'_list indentation ->
+    let expr'_s = expr'_to_string expr' in
+    let expr'_list_s = expr'_list_to_string expr'_list in
+    Printf.sprintf "%s(%s (\n%s, %s\n%s))" indentation applic_name expr'_s expr'_list_s indentation
 
-  | LambdaSimple' (args_list, expr') -> lambda_to_stirng "LambdaSimple'" args_list "" expr'
-  | LambdaOpt' (args_list, arg_opt, expr') -> lambda_to_stirng "LambdaOpt'" args_list arg_opt expr'
-  | Applic' (expr', expr'_list) -> applic_to_string "Applic'" expr' expr'_list
-  | ApplicTP' (expr', expr'_list) -> applic_to_string "ApplicTP'" expr' expr'_list;;
+  and expr'_to_string = fun expr' -> do_indentation (expr'_to_string_core expr')
+
+  and expr'_to_string_core = fun expr' indentation ->
+    match expr' with
+    | Const' const -> Printf.sprintf "%s(Const' %s)" indentation (constant_to_string const)
+    | Var' var -> Printf.sprintf "%s(Var' (%s))" indentation (var_to_string var)
+    | Box' var -> Printf.sprintf "%s(Box' (%s))" indentation (var_to_string var)
+    | BoxGet' var -> Printf.sprintf "%s(BoxGet' (%s))" indentation (var_to_string var)
+    | BoxSet' (var, expr') -> Printf.sprintf "%s(BoxSet' (\n  %s%s,\n%s\n%s))" indentation indentation (var_to_string var) (expr'_to_string expr') indentation
+    | If' (test, dit, dif) ->
+      let s_test = expr'_to_string test in
+      let s_dit = expr'_to_string dit in
+      let s_dif = expr'_to_string dif in
+      Printf.sprintf "%s(If' (\n%s,\n%s,\n%s\n%s))" indentation s_test s_dit s_dif indentation
+    | Seq' expr'_list -> Printf.sprintf "%s(Seq' %s\n%s)" indentation (expr'_list_to_string expr'_list) indentation
+    | Set' (var, expr') -> Printf.sprintf "%s(Set' (\n  %s%s,\n%s\n%s))" indentation indentation (var_to_string var) (expr'_to_string expr') indentation
+    | Def' (var, expr') -> Printf.sprintf "%s(Def' (\n  %s%s,\n%s\n%s))" indentation indentation (var_to_string var) (expr'_to_string expr') indentation
+    | Or' expr'_list -> Printf.sprintf "%s(Or' %s\n%s)" indentation (expr'_list_to_string expr'_list) indentation
+
+    | LambdaSimple' (args_list, expr') ->lambda_to_stirng "LambdaSimple'" args_list "" expr' indentation
+    | LambdaOpt' (args_list, arg_opt, expr') -> lambda_to_stirng "LambdaOpt'" args_list arg_opt expr' indentation
+    | Applic' (expr', expr'_list) -> applic_to_string "Applic'" expr' expr'_list indentation
+    | ApplicTP' (expr', expr'_list) -> applic_to_string "ApplicTP'" expr' expr'_list indentation in
+
+  expr'_to_string expr';;
 
 let make_abstract_test_analysis = fun f_expr' f_transformation f_out_transformation f_report_error input expected ->
   f_expr'
@@ -153,6 +182,19 @@ let make_abstract_test_analysis = fun f_expr' f_transformation f_out_transformat
         let expected_t = f_out_transformation expected in
         f_report_error input actual_t expected_t)
     input;;
+
+let test_string_case =
+  make_abstract_test_analysis
+    read_expr
+    (fun expr -> Semantics.run_semantics expr)
+    expr'_to_string
+    (fun expr actual_s expected_s ->
+      Printf.printf
+        "error in %s test:  \n{ %s }\n  expected: { %s }\n  actual: { %s }\n\n"
+        "general tests"
+        ""
+        expected_s
+        actual_s);;
 
 let test_expr_case =
   make_abstract_test_analysis
@@ -165,7 +207,7 @@ let test_expr_case =
         "general tests"
         ""
         expected_s
-        actual_s)
+        actual_s);;
 
 let make_abstract_test_analysis_from_string = make_abstract_test_analysis read_expr';;
 
@@ -1171,7 +1213,43 @@ let general_tests = fun () ->
           )
         ])
       )
-    ));;
+    ));
+
+    test_string_case "
+(let ((flonum? flonum?) (rational? rational?)
+      (exact->inexact exact->inexact)
+      (fold-left fold-left) (map map)
+      (_+ +) (_* *) (_/ /) (_= =) (_< <)
+      (car car) (cdr cdr) (null? null?))
+  (let ((^numeric-op-dispatcher
+	 (lambda (op)
+	   (lambda (x y)
+	     (cond
+	      ((and (flonum? x) (rational? y)) (op x (exact->inexact y)))
+	      ((and (rational? x) (flonum? y)) (op (exact->inexact x) y))
+	      (else (op x y)))))))
+    (let ((normalize
+	   (lambda (x)
+	     (if (flonum? x)
+		 x
+		 (let ((n (gcd (numerator x) (denominator x))))
+		   (_/ (_/ (numerator x) n) (_/ (denominator x) n)))))))
+      (set! + (lambda x (normalize (fold-left (^numeric-op-dispatcher _+) 0 x))))
+      (set! * (lambda x (normalize (fold-left (^numeric-op-dispatcher _*) 1 x))))
+      (set! / (let ((/ (^numeric-op-dispatcher _/)))
+		(lambda (x . y)
+		  (if (null? y)
+		      (/ 1 x)
+		      (normalize (fold-left / x y)))))))
+    (let ((^comparator
+	  (lambda (op)
+	    (lambda (x . ys)
+	      (fold-left (lambda (a b) (and a b)) #t
+			 (map (lambda (y) (op x y)) ys))))))
+      (set! = (^comparator (^numeric-op-dispatcher _=)))
+      (set! < (^comparator (^numeric-op-dispatcher _<))))))
+"
+(Const' Void);;
 
 let main = fun () ->
   Printf.printf "\nrunning tests...\n";
