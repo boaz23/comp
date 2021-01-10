@@ -177,7 +177,7 @@ let test_code_gen = fun expr' ->
    let fvars = Code_Gen.make_fvars_tbl [expr'] in
    let generate = Code_Gen.generate const_tbl fvars in
    let generated_code = generate expr' in
-   let e_message = Printf.sprintf "code:\n %s\ngenerate:\n%s\n" 
+   let e_message = Printf.sprintf "code:\n %s\ngenerate:\n%s\n"
                      (expr'_to_string expr')
                         generated_code in
    print_string e_message
@@ -185,12 +185,12 @@ let test_code_gen = fun expr' ->
 
 let a = Code_Gen.make_fvars_tbl (string_to_asts "(define a 1)");;
 
-let consts_tbl_tests() = 
+let consts_tbl_tests() =
 
    test_const_tbl "(list \"ab\" '(1 2) 'c 'ab)"
-      [(Void, (0, "db T_VOID")); 
+      [(Void, (0, "db T_VOID"));
        (Sexpr Nil, (1, "db T_NIL"));
-       (Sexpr (Bool false), (2, "db T_BOOL, 0"));                                                                                                                                                   
+       (Sexpr (Bool false), (2, "db T_BOOL, 0"));
        (Sexpr (Bool true), (4, "db T_BOOL, 1"));
        (Sexpr (String "ab"), (6, "MAKE_LITERAL_STRING(2, \"ab\")"));
        (Sexpr (Number (Fraction (1, 1))), (17, "MAKE_LITERAL_RATIONAL(1, 1)"));
@@ -205,10 +205,10 @@ let consts_tbl_tests() =
        (Sexpr (Symbol "ab"), (104, "MAKE_LITERAL_SYMBOL(const_tbl+6)"))];
 
    test_const_tbl "(define add (lambda (a b) ((display '(+ a b)) (+ a b) ))) (add 1 9)"
-      [(Void, (0, "db T_VOID")); 
+      [(Void, (0, "db T_VOID"));
       (Sexpr Nil, (1, "db T_NIL"));
-      (Sexpr (Bool false), (2, "db T_BOOL, 0"));                                                                                                                                                     
-      (Sexpr (Bool true), (4, "db T_BOOL, 1"));                                                                                                                                                      
+      (Sexpr (Bool false), (2, "db T_BOOL, 0"));
+      (Sexpr (Bool true), (4, "db T_BOOL, 1"));
       (Sexpr (String "+"), (6, "MAKE_LITERAL_STRING(1, \"+\")"));
       (Sexpr (Symbol "+"), (16, "MAKE_LITERAL_SYMBOL(const_tbl+6)"));
       (Sexpr (String "a"), (25, "MAKE_LITERAL_STRING(1, \"a\")"));
