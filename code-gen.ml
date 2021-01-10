@@ -35,6 +35,8 @@ end;;
 
 module Code_Gen : CODE_GEN = struct
 
+let debug = true;;
+
 (*
 ============== Const table ==============
 *)
@@ -845,7 +847,10 @@ module Code_Gen : CODE_GEN = struct
 
     (*========== Generate code ==========*)
     and generate_code = fun expr' ->
-      match expr' with
+      if not debug then
+        let _, code = generate_code_core expr' in
+        code
+      else match expr' with
       | (Const' _ | Var' _) ->
         let _, code = generate_code_core expr' in
         code
