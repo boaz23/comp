@@ -177,22 +177,13 @@ let generate_code_for_files_asts generate files files_asts =
     files files_asts in
   String.concat "\n\n" files_asm_code;;
 
-try
-  (* Compile a string of scheme code to a collection of analyzed ASTs *)
-  let string_to_asts s = List.map Semantics.run_semantics
-                           (Tag_Parser.tag_parse_expressions
-                              (Reader.read_sexprs s)) in
+(* Compile a string of scheme code to a collection of analyzed ASTs *)
+let string_to_asts s = List.map Semantics.run_semantics
+                          (Tag_Parser.tag_parse_expressions
+                            (Reader.read_sexprs s));;
 
-  (* get the filename to compile from the command line args *)
-  let infile = Sys.argv.(1) in
-
-  (* load the input file and stdlib *)
-  let files = [
-    "stdlib.scm";
-    infile
-  ] in
-
-  let files_code = List.map file_to_string files in
+let generate_code_from_files files_list =
+  let files_code = List.map file_to_string files_list in
 
   (* generate asts for all the code *)
   let files_asts = List.map string_to_asts files_code in
@@ -206,12 +197,25 @@ try
 
   (* Generate assembly code for each ast and merge them all into a single string *)
   let generate = Code_Gen.generate consts_tbl fvars_tbl in
-  let code_fragment = generate_code_for_files_asts generate files files_asts in
+  let code_fragment = generate_code_for_files_asts generate files_list files_asts in
 
   (* merge everything into a single large string and print it out *)
   print_string ((make_prologue consts_tbl fvars_tbl)  ^
                   code_fragment ^ clean_exit ^
-                    "\n" ^ Prims.procs)
+                    "\n" ^ Prims.procs);;
+
+try
+
+  (* get the filename to compile from the command line args *)
+  let infile = Sys.argv.(1) in
+
+  (* load the input file and stdlib *)
+  let files = [
+    "stdlib.scm";
+    infile
+  ] in
+
+  generate_code_from_files files
 
 (* raise an exception if the input file isn't found *)
 with Invalid_argument(x) -> raise X_missing_input_file;;
