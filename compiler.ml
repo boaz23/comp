@@ -1,6 +1,6 @@
+#use "config.ml";;
 #use "code-gen.ml";;
 #use "prims.ml";;
-#use "config.ml";;
 
 (*
    Auxiliary function to load the contents of a file into a string in memory.
