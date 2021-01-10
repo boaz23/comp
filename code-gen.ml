@@ -424,7 +424,18 @@ module Code_Gen : CODE_GEN = struct
   (*========== General code ==========*)
 
   let concat_list_of_code = fun list -> String.concat "\n" list;;
-  let format_label = fun prefix name -> Printf.sprintf "%s%s:" prefix name;;
+  let format_debug_label = fun append_nop name ->
+    if debug then
+      let label = name  ^ ":" in
+      if append_nop then concat_list_of_code [label; "nop"]
+      else label
+    else "";;
+  let format_debug_label_with_nop = format_debug_label true;;
+  let format_debug_label_without_nop = format_debug_label false;;
+  let format_label = fun append_nop prefix name ->
+    format_debug_label append_nop (prefix ^ name);;
+  let format_label_with_nop = format_label true;;
+  let format_label_without_nop = format_label false;;
 
   let comment_indexer = ref(0);;
   let comment_index () =
@@ -448,7 +459,7 @@ module Code_Gen : CODE_GEN = struct
   let lambda_label_prefix = ref(".lambda_global_");;
   let current_lambda_label_prefix = fun () -> !lambda_label_prefix;;
   let set_lambda_label_prefix = fun value -> lambda_label_prefix := value;;
-  let format_lambda_label = fun name -> format_label (current_lambda_label_prefix ()) name;;
+  let format_lambda_label = fun name -> format_label_without_nop (current_lambda_label_prefix ()) name;;
 
   let enclosing_labmda_param_vars_ref = ref(0);;
   let get_enclosing_labmda_param_vars = fun () ->
@@ -719,19 +730,20 @@ module Code_Gen : CODE_GEN = struct
       let number_of_args = number_of_required_args + 1 in
       let body_fun_code =
       (fun () ->
+        let format_debug_label = format_debug_label_without_nop in
         concat_list_of_code
         [
-          ".check_if_opt_given:";
+          format_debug_label ".check_if_opt_given";
           "mov r8, PARAMS_COUNT";
           "cmp r8, " ^ (string_of_int number_of_required_args);
           "je .no_opt_arg";
 
-          ".with_opt_arg:";
+          format_debug_label ".with_opt_arg";
           "mov rbx, SOB_NIL_ADDRESS";
           "PVAR_ADDR(rsi, r8-1)";
           "PVAR_ADDR(rdi, " ^ (string_of_int (number_of_required_args - 1)) ^ ")";
 
-          ".build_list_s:";
+          format_debug_label ".build_list_s";
           "cmp rsi, rdi";
           "je .build_list_e";
 
@@ -745,7 +757,7 @@ module Code_Gen : CODE_GEN = struct
           ".build_list_e:";
           "nop";
 
-          ".pull_stack_upwards:";
+          format_debug_label ".pull_stack_upwards";
           "mov PVAR(r8-1), rbx";
           "PVAR_ADDR(rsi, r8-2)";
           "PVAR_ADDR(rdi, " ^ (string_of_int (number_of_required_args - 1)) ^ ")";
@@ -756,20 +768,20 @@ module Code_Gen : CODE_GEN = struct
           "mov rdx, " ^ (string_of_int (4 + number_of_required_args));
           "call copy_array_backward";
 
-          ".fix_stack_pointers_with_opt:";
+          format_debug_label ".fix_stack_pointers_with_opt";
           "add rsp, r9";
           "mov rbp, rsp";
 
           "jmp .stack_adjustment_done";
           ".no_opt_arg:";
-          "nop";
-          ".pull_stack_one_downwards:";
+          if debug then "nop" else "";
+          format_debug_label ".pull_stack_one_downwards";
           "lea rsi, [rbp - WORD_SIZE]";
           "COPY_ARRAY_STATIC rbp, rsi, " ^ (string_of_int (4 + number_of_required_args)) ^ ", rcx";
-          ".fix_stack_pointers_no_opt:";
+          format_debug_label ".fix_stack_pointers_no_opt";
           "mov rbp, rsi";
           "mov rsp, rbp";
-          ".set_opt_nil:";
+          format_debug_label ".set_opt_nil";
           "mov PVAR(" ^ (string_of_int number_of_required_args) ^ "), SOB_NIL_ADDRESS";
           ".stack_adjustment_done:";
           "mov PARAMS_COUNT, " ^ (string_of_int number_of_args)
@@ -780,14 +792,17 @@ module Code_Gen : CODE_GEN = struct
     (*========== Applic ==========*)
 
     and generate_code_for_applic_core = fun label_prefix operator_expr' operands_expr'_list ->
+      let format_label_with_nop = format_label_with_nop label_prefix in
+      let format_label_without_nop = format_label_without_nop label_prefix in
+
       let prepare_frame =
-        let start_label = [format_label label_prefix "push_args"; "nop"] in
+        let start_label = format_label_with_nop "push_args" in
         let arg_index_ref = ref(0) in
         let push_args =
           List.fold_left
           (fun acc expr' ->
             let push_arg_code = [
-              format_label label_prefix (Printf.sprintf "push_arg_%d" !arg_index_ref);
+              format_label_with_nop (Printf.sprintf "push_arg_%d" !arg_index_ref);
               generate_code expr';
               "push rax"
             ] in
@@ -796,17 +811,16 @@ module Code_Gen : CODE_GEN = struct
           []
           operands_expr'_list in
         let push_rest = [
-          format_label label_prefix "push_args_count";
+          format_label_without_nop "push_args_count";
           "push " ^ (string_of_int (List.length operands_expr'_list));
-          format_label label_prefix "operator_code";
-          "nop";
+          format_label_with_nop "operator_code";
           generate_code operator_expr';
-          format_label label_prefix "push_env";
+          format_label_without_nop "push_env";
           "push qword [rax + TYPE_SIZE]"
         ] in
-        start_label @ push_args @ push_rest in
+        start_label :: (push_args @ push_rest) in
       let frame_cleanup = [
-        format_label label_prefix "frame_cleanup";
+        format_label_without_nop "frame_cleanup";
         "add rsp, WORD_SIZE  ; pop env";
         "pop rbx  ; pop args count";
         "shl rbx, 3  ; rbx = rbx * 8";
@@ -818,10 +832,11 @@ module Code_Gen : CODE_GEN = struct
       let applic_id = comment_index () in
       let comment = Printf.sprintf "applic #" ^ applic_id in
       let debug_label_prefix = Printf.sprintf ".applic_normal_%s_" applic_id in
+      let format_label = format_label_without_nop debug_label_prefix in
 
       let (prepare_frame, frame_cleanup) = generate_code_for_applic_core debug_label_prefix operator_expr' operands_expr'_list in
       let call_code = [
-        format_label debug_label_prefix "call_op";
+        format_label "call_op";
         "call [rax + TYPE_SIZE + WORD_SIZE]"
       ] in
       comment, concat_list_of_code (prepare_frame @ call_code @ frame_cleanup)
@@ -830,23 +845,24 @@ module Code_Gen : CODE_GEN = struct
       let applic_id = comment_index () in
       let comment = Printf.sprintf "applic TP #" ^ applic_id in
       let debug_label_prefix = Printf.sprintf ".applic_TP_%s_" applic_id in
+      let format_label = format_label_without_nop debug_label_prefix in
 
       let (prepare_frame, frame_cleanup) = generate_code_for_applic_core debug_label_prefix operator_expr' operands_expr'_list in
       let call_code =
         let enclosing_labmda_param_vars = get_enclosing_labmda_param_vars () in
         let operands_amount = List.length operands_expr'_list in
         let new_frame_size = operands_amount + 4 in [
-          format_label debug_label_prefix "fix_frame";
+          format_label "fix_frame";
           "push RET_ADDR  ;push old ret address";
           "push OLD_RBP ;save the old RBP pointer";
-          format_label debug_label_prefix "copy_new_frame";
+          format_label "copy_new_frame";
           "lea rbx, [rbp - WORD_SIZE] ;set rbx to point the top of the new frame";
           "lea rsp, [rbp + WORD_SIZE*(3 + " ^ (string_of_int enclosing_labmda_param_vars) ^ ")] ; set rsp to point to the top of the old frame";
           "COPY_ARRAY_STATIC rbx, rsp, " ^ (string_of_int new_frame_size) ^ ", rcx, 0, 0, -1, -1";
-          format_label debug_label_prefix "fix_frame_pointers";
+          format_label "fix_frame_pointers";
           "lea rsp, [rbp+WORD_SIZE*(" ^ (string_of_int (-(operands_amount - enclosing_labmda_param_vars) + 1)) ^ ")] ;setup the stack pointer for the new function. it point to the return address right now";
           "mov rbp, [rsp - WORD_SIZE] ;restore the old RBP pointer";
-          format_label debug_label_prefix "call_op";
+          format_label "call_op";
           "jmp [rax + TYPE_SIZE + WORD_SIZE]"
         ] in
       comment, concat_list_of_code (prepare_frame @ call_code @ frame_cleanup)
