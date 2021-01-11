@@ -332,13 +332,14 @@ module Prims : PRIMS = struct
 apply:
 push rbp
 mov rbp, rsp
-push OLD_RBP
-push RET_ADDR
-push ENV
-sub rsp, WORD_SIZE ;save space for the arguments count
 
 mov r8, PARAMS_COUNT
 mov r11, PVAR(0)
+
+push OLD_RBP
+push RET_ADDR
+push qword [r11 + TYPE_SIZE] ; push the function's env
+sub rsp, WORD_SIZE ;save space for the arguments count
 
 ; push the normal arguments from first to last (pvar(1) to pvar(PARAMS_COUNT - 2))
 mov rbx, PARAMS_COUNT
@@ -439,8 +440,16 @@ mov rax, 0
 mov rdi, write_sob_if_not_void.newline
 call printf
 
-.set_void:
+.ret_value:
+mov r8, PARAMS_COUNT
+cmp r8, 0
+je .ret_void
+.return_first:
+mov rax, PVAR(r8-1)
+jmp .exit
+.ret_void:
 RET_VOID
+.exit:
 "
     ] in
     procs_list_core @ debug_procs_list
