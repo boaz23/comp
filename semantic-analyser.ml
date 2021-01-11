@@ -1,4 +1,5 @@
 #use "tag-parser.ml";;
+#use "config.ml";;
 
 type var =
   | VarFree of string
@@ -525,7 +526,10 @@ let annotate_boxes_helper = fun e ->
 
 let annotate_lexical_addresses e = annotate_lexical_addresses_helper e;;
 
-let annotate_tail_calls e =annotate_tail_calls_helper e;;
+let annotate_tail_calls =
+  if CompConfig.use_tp then
+    annotate_tail_calls_helper
+  else (fun e -> e);;
 
 let box_set e = annotate_boxes_helper e;;
 
