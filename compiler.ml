@@ -210,10 +210,12 @@ try
   let infile = Sys.argv.(1) in
 
   (* load the input file and stdlib *)
-  let files = [
-    "stdlib.scm";
-    infile
-  ] in
+  let files =
+    if CompConfig.no_std_lib then [infile]
+    else [
+      "stdlib.scm";
+      infile
+    ] in
 
   generate_code_from_files files
 
