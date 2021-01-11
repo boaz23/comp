@@ -149,10 +149,9 @@ module Code_Gen : CODE_GEN = struct
     let chars_codes_str_cs =
       let string_chars_list = string_to_list str in
       let chars_codes = List.map Char.code string_chars_list in
-      let chars_codes_strs = List.map (Printf.sprintf "%d") chars_codes in
-      let chars_codes_str_cs = String.concat ", " chars_codes_strs in
-      chars_codes_str_cs in
-      Printf.sprintf "MAKE_LITERAL_STRING(%d, {%s})" str_len chars_codes_str_cs;;
+      let chars_codes_strs = List.map (fun char_code -> Printf.sprintf "%d" char_code) chars_codes in
+      String.concat ", " chars_codes_strs in
+    Printf.sprintf "MAKE_LITERAL_STRING(%d, {%s})" str_len chars_codes_str_cs;;
   let make_literal_symbol_asm_code = fun addr ->
       Printf.sprintf "MAKE_LITERAL_SYMBOL(%s%d)" const_tbl_label_plus addr;;
   let make_literal_pair_asm_code = fun addr_car addr_cdr ->
@@ -242,8 +241,10 @@ module Code_Gen : CODE_GEN = struct
         let next_start_offest = offset + (get_sob_size_of_const const) in
         let const_asm_code =
           let code = make_asm_code const tuple_const_list in
-          let comment = Printf.sprintf "; offset %d, %s" offset (constant_to_string const) in
-          Printf.sprintf "%s %s" code comment in
+          if debug then
+            let comment = Printf.sprintf "; offset %d, %s" offset (constant_to_string const) in
+            Printf.sprintf "%s %s" code comment
+          else code in
         let const_tuple = (const, (offset, const_asm_code)) in
          build_consts_tbl_rec rest (tuple_const_list @ [const_tuple]) next_start_offest
       )
