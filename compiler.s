@@ -232,6 +232,7 @@
 
 %define RET_VOID mov rax, SOB_VOID_ADDRESS
 
+section .text
 ; copy_array_forward(src, dest, len)
 copy_array_forward:
     %push
@@ -310,6 +311,7 @@ section .data
 .undefined:
     db "#<undefined>", 0
 
+section .text
 write_sob_rational:
     push rbp
     mov rbp, rsp
@@ -340,6 +342,7 @@ section .data
 .frac_format_string:
     db "%ld/%ld", 0
 
+section .text
 write_sob_float:
     push rbp
     mov rbp, rsp
@@ -367,6 +370,7 @@ section .data
 .float_format_string:
     db "%f", 0
 
+section .text
 write_sob_char:
     push rbp
     mov rbp, rsp
@@ -448,6 +452,7 @@ section .data
 .regular:
     db "#\%c", 0
 
+section .text
 write_sob_void:
     push rbp
     mov rbp, rsp
@@ -463,6 +468,7 @@ section .data
 .void:
     db "#<void>", 0
 
+section .text
 write_sob_bool:
     push rbp
     mov rbp, rsp
@@ -489,6 +495,7 @@ section .data
 .true:
     db "#t", 0
 
+section .text
 write_sob_nil:
     push rbp
     mov rbp, rsp
@@ -504,6 +511,7 @@ section .data
 .nil:
     db "()", 0
 
+section .text
 write_sob_string:
     push rbp
     mov rbp, rsp
@@ -617,6 +625,7 @@ section .data
 .fs_backslash:
     db CHAR_BACKSLASH, CHAR_BACKSLASH, 0
 
+section .text
 write_sob_pair:
     push rbp
     mov rbp, rsp
@@ -651,6 +660,7 @@ section .data
 .close_paren:
     db ")", 0
 
+section .text
 write_sob_pair_on_cdr:
     push rbp
     mov rbp, rsp
@@ -699,6 +709,7 @@ section .data
 .dot:
     db " . ", 0
 
+section .text
 write_sob_symbol:
     push rbp
     mov rbp, rsp
@@ -756,6 +767,7 @@ section .data
 .fs_hex_char:
     db "\x%02x;", 0
 
+section .text
 write_sob_closure:
     push rbp
     mov rbp, rsp
