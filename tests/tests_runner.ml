@@ -6,8 +6,13 @@ TODO:
   * otherwise, do not change anythng?
 * proper cleanup per test. failed tests can still get cleaned up right now
 * format the output test file name: remove the base directory
-* print a success message if all tests pass
+* print a success message if all tests pass or a report of all tests failed
 * custom scheme for chez scheme instead of the same code for both
+* fix printing noy immediate, for some reason it is delayed until the end
+* hide the makefile printing commands and instead print (in normal color) the test beign run
+* refactor f_cleaup to f_cleanup_on_success add a f_cleanup_on_fail
+* rename of cleanup functions meant for the run tests functions to begin with f_cleanup instead of cleanup
+* sort the file and direcory names in the enties enumeration for better predictions of the tests to be followed after the current one
 *)
 
 let tc_fg_bright_red     = "\027[91m";;
