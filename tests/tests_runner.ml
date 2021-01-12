@@ -1,3 +1,10 @@
+(*
+TODO:
+* convert the commands execution to a pipeline
+* normalize the results of procedure (i.e. a line which starts with '#<procedure')
+* proper cleanup per test. failed tests can still get cleaned up right now
+*)
+
 let tc_fg_bright_red     = "\027[91m";;
 let tc_fg_bright_green   = "\027[92m";;
 let tc_fg_bright_yellow  = "\027[93m";;
