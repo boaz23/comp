@@ -90,6 +90,19 @@ let move_file_to_dir file_path dir_path =
 
 let remove_file = Sys.remove;;
 
+let cleanup_nothing _ _ = ();;
+
+let cleanup_temp_files temp_dir out_files =
+  let _ = Sys.command ("rm " ^ temp_dir ^ "*") in
+  ();;
+
+let cleanup_files_test_dir temp_dir out_files =
+  List.iter remove_file out_files;;
+
+let cleanup_all_files temp_dir out_files =
+  cleanup_temp_files temp_dir out_files;
+  cleanup_files_test_dir temp_dir out_files;;
+
 let rec execute_commands = function
   | [] -> true
   | command :: rest ->
@@ -97,7 +110,7 @@ let rec execute_commands = function
     if result then execute_commands rest
     else false;;
 
-let run_test temp_dir test_file =
+let run_test f_cleanup temp_dir test_file =
   let file_name = file_name_from_path test_file in
   let file_name_no_ext = file_name_without_ext file_name in
   let file_path_no_ext = file_name_without_ext test_file in
@@ -176,49 +189,35 @@ let run_test temp_dir test_file =
       execute_comparison;
       check_result_of_comparison_with_scheme;
     ] in
-  let _ = execute_commands (base_commands @ rest_commands) in
+  let success = execute_commands (base_commands @ rest_commands) in
+  if success then begin
+    f_cleanup temp_dir [out_file; scheme_out_file; result_file];
+  end
+  else begin
+    cleanup_temp_files temp_dir [];
+  end;
   ();;
-
-let temp_dir = "tests/.tests_runner_files/";;
 
 let find_test_files_from_files files =
   List.filter (has_file_ext ".scm") files;;
-let run_tests_from_files test_files =
-  List.iter (run_test temp_dir) test_files;;
+let run_tests_from_files f_cleanup temp_dir test_files =
+  List.iter (run_test f_cleanup temp_dir) test_files;;
 
-let run_tests_in_dir f_cleanup dir_path =
+let run_tests_in_dir f_cleanup temp_dir dir_path =
   let (files, _) = get_dir_entries dir_path in
   let test_files = find_test_files_from_files files in
-  run_tests_from_files test_files;
-  f_cleanup dir_path;;
+  run_tests_from_files f_cleanup temp_dir test_files;;
 
-let rec run_tests_in_dirs_recursive f_cleanup dir_path =
+let rec run_tests_in_dirs_recursive f_cleanup temp_dir dir_path =
   let (files, dirs) = get_dir_entries dir_path in
   let test_files = find_test_files_from_files files in
   if test_files <> [] then begin
     Printf.printf "%s" ("testing in dir: " ^ dir_path);
-    run_tests_from_files test_files;
-    f_cleanup dir_path;
-  end
-  List.iter (run_tests_in_dirs_recursive f_cleanup) dirs;;
+    run_tests_from_files f_cleanup temp_dir test_files;
+  end;
+  List.iter (run_tests_in_dirs_recursive f_cleanup temp_dir) dirs;;
 
-let cleanup_nothing dir_path = ();;
-
-let cleanup_temp_files dir_path =
-  let _ = Sys.command ("rm -v " ^ temp_dir ^ "*") in
-  ();;
-
-let cleanup_files_test_dir dir_path =
-  let (files, _) = get_dir_entries dir_path in
-  let exts = [
-    ".actual";
-    ".actual.chez";
-    ".result"
-  ] in
-  let filter = (fun file -> List.exists (fun ext -> has_file_ext ext file) exts) in
-  let files = List.filter filter files in
-  List.iter remove_file files;;
-
-let cleanup_all_files dir_path =
-  cleanup_temp_files dir_path;
-  cleanup_files_test_dir dir_path;;
+let temp_dir = "tests/.tests_runner_files/";;
+let tests_dir = "tests";;
+let cleanup_all_temp_files () = cleanup_temp_files temp_dir [];;
+let run_all () = run_tests_in_dirs_recursive cleanup_all_files temp_dir tests_dir;;
