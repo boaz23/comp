@@ -1,9 +1,13 @@
 (*
 TODO:
 * convert the commands execution to a pipeline
-* normalize the results of procedure (i.e. a line which starts with '#<procedure')
+* normalize the results of procedure (i.e. a line which starts with '#<procedure'):
+  * if comparing with chez, ignore these
+  * otherwise, do not change anythng?
 * proper cleanup per test. failed tests can still get cleaned up right now
 * format the output test file name: remove the base directory
+* print a success message if all tests pass
+* custom scheme for chez scheme instead of the same code for both
 *)
 
 let tc_fg_bright_red     = "\027[91m";;
@@ -104,11 +108,11 @@ let run_test temp_dir test_file =
   let cmp_results_exp_file = temp_file_no_ext ^ ".cmp_command.scm" in
   let expected_out_file = file_path_no_ext ^ ".out" in
   let out_file = file_path_no_ext ^ ".actual" in
-  let scheme_out_file = file_path_no_ext ^ ".scm.actual" in
+  let scheme_out_file = file_path_no_ext ^ ".actual.chez" in
   let result_file = file_path_no_ext ^ ".result" in
 
   let compile_test_file () =
-    let status = Sys.command ("make -f Makefile " ^ test_file) in
+    let status = Sys.command ("make -f Makefile " ^ file_path_no_ext) in
     if status != 0 then begin
       print_in_color tc_fg_bright_red ("Compilition failed on test: " ^ test_name);
       false
@@ -198,7 +202,7 @@ let rec run_tests_in_dirs_recursive f_cleanup dir_path =
   end
   List.iter (run_tests_in_dirs_recursive f_cleanup) dirs;;
 
-let clean_nothing dir_path = ();;
+let cleanup_nothing dir_path = ();;
 
 let cleanup_temp_files dir_path =
   let _ = Sys.command ("rm -v " ^ temp_dir ^ "*") in
@@ -208,7 +212,7 @@ let cleanup_files_test_dir dir_path =
   let (files, _) = get_dir_entries dir_path in
   let exts = [
     ".actual";
-    ".scm.actual";
+    ".actual.chez";
     ".result"
   ] in
   let filter = (fun file -> List.exists (fun ext -> has_file_ext ext file) exts) in
