@@ -36,6 +36,7 @@ let file_dir = str_sub_up_to_last_char_occur '/';;
 let file_name_from_path = str_sub_from_last_char_occur '/';;
 let file_name_without_ext = str_sub_up_to_last_char_occur '.';;
 let file_ext = str_sub_from_last_char_occur '.';;
+let has_file_ext = string_ends_with;;
 
 let combine_path dir path =
   let dir =
@@ -53,7 +54,7 @@ let get_dir_entries dir_path =
 
 let find_test_files_in_dir dir_path =
   let (files, dirs) = get_dir_entries dir_path in
-  List.filter (fun file -> string_ends_with ".scm" file) files;;
+  List.filter (has_file_ext ".scm") files;;
 
 let read_file file_path =
   let ic = open_in file_path in
@@ -78,6 +79,8 @@ let move_file_to_dir file_path dir_path =
   let file_name = file_name_from_path file_path in
   let new_path = combine_path dir_path file_name in
   Sys.rename file_path new_path;;
+
+let remove_file = Sys.remove;;
 
 let compile_test_file test_file =
   Sys.command ("make -f Makefile " ^ test_file);;
@@ -120,6 +123,30 @@ let run_test temp_dir test_file =
     print_in_color tc_fg_bright_red (Printf.sprintf "Test failed, incorrect result: %s" test_name);
   end;;
 
-let run_tests_in_dir dir_path =
+let temp_dir = "tests/.tests_runner_files/";;
+
+let run_tests_in_dir f_cleanup dir_path =
   let test_files = find_test_files_in_dir dir_path in
-  List.iter (run_test "tests/.tests_runner_files/") test_files;;
+  List.iter (run_test temp_dir) test_files;
+  f_cleanup dir_path;;
+
+let clean_nothing dir_path = ();;
+
+let cleanup_temp_files dir_path =
+  let _ = Sys.command ("rm -v " ^ temp_dir ^ "*") in
+  ();;
+
+let cleanup_files_test_dir dir_path =
+  let (files, _) = get_dir_entries dir_path in
+  let exts = [
+    ".actual";
+    ".scm.actual";
+    ".result"
+  ] in
+  let filter = (fun file -> List.exists (fun ext -> has_file_ext ext file) exts) in
+  let files = List.filter filter files in
+  List.iter remove_file files;;
+
+let cleanup_all_files dir_path =
+  cleanup_temp_files();
+  cleanup_files_test_dir dir_path;;
