@@ -148,5 +148,5 @@ let cleanup_files_test_dir dir_path =
   List.iter remove_file files;;
 
 let cleanup_all_files dir_path =
-  cleanup_temp_files();
+  cleanup_temp_files dir_path;
   cleanup_files_test_dir dir_path;;
