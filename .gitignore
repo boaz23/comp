@@ -18,3 +18,5 @@ TODO.txt
 # misc
 extra_stuff/*
 temp/*
+
+tests/yair_tests
