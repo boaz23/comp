@@ -82,8 +82,12 @@ let move_file_to_dir file_path dir_path =
 
 let remove_file = Sys.remove;;
 
-let compile_test_file test_file =
-  Sys.command ("make -f Makefile " ^ test_file);;
+let rec execute_commands = function
+  | [] -> true
+  | command :: rest ->
+    let result = command () in
+    if result then execute_commands rest
+    else false;;
 
 let run_test temp_dir test_file =
   let file_name = file_name_from_path test_file in
@@ -92,36 +96,63 @@ let run_test temp_dir test_file =
   let temp_file_no_ext = combine_path temp_dir file_name_no_ext in
   let test_name = file_name in
 
-  let status = compile_test_file file_path_no_ext in
-  if status != 0 then begin
-    print_in_color tc_fg_bright_red ("Compilition failed on test: " ^ test_name);
-  end else
-  move_file_to_dir file_name_no_ext temp_dir;
-  move_file_to_dir (file_path_no_ext ^ ".s") temp_dir;
-  move_file_to_dir (file_path_no_ext ^ ".o") temp_dir;
-
   let exe_path = temp_file_no_ext in
-  let out_file = file_path_no_ext ^ ".actual" in
-  let execution_status = Sys.command (Printf.sprintf "%s > %s" exe_path out_file) in
-  if execution_status != 0 then begin
-    print_in_color tc_fg_bright_red ("Executable didn't exit correctly for test: " ^ test_name);
-  end else
-  let scheme_out_file = file_path_no_ext ^ ".scm.actual" in
-  let _ = Sys.command (Printf.sprintf "scheme -q < %s > %s" test_file scheme_out_file) in
-
-  let actual = read_file_trimmed out_file in
-  let scheme_actual = read_file_trimmed scheme_out_file in
   let cmp_results_exp_file = temp_file_no_ext ^ ".cmp_command.scm" in
-  write_to_file cmp_results_exp_file (Printf.sprintf "(equal? '(%s) '(%s))" scheme_actual actual);
-
+  let out_file = file_path_no_ext ^ ".actual" in
+  let scheme_out_file = file_path_no_ext ^ ".scm.actual" in
   let result_file = file_path_no_ext ^ ".result" in
-  let _ = Sys.command (Printf.sprintf "scheme -q < %s > %s" cmp_results_exp_file result_file) in
 
-  let result_scheme_bool = read_file_trimmed result_file in
-  let result = result_scheme_bool = "#t" in
-  if not result then begin
-    print_in_color tc_fg_bright_red (Printf.sprintf "Test failed, incorrect result: %s" test_name);
-  end;;
+  let compile_test_file () =
+    let status = Sys.command ("make -f Makefile " ^ test_file) in
+    if status != 0 then begin
+      print_in_color tc_fg_bright_red ("Compilition failed on test: " ^ test_name);
+      false
+    end else
+      true in
+
+  let move_compilation_files_to_temp_dir () =
+    move_file_to_dir file_name_no_ext temp_dir;
+    move_file_to_dir (file_path_no_ext ^ ".s") temp_dir;
+    move_file_to_dir (file_path_no_ext ^ ".o") temp_dir;
+    true in
+
+  let execute_compiler () =
+    let execution_status = Sys.command (Printf.sprintf "%s > %s" exe_path out_file) in
+    if execution_status != 0 then begin
+      print_in_color tc_fg_bright_red ("Executable didn't exit correctly for test: " ^ test_name);
+      false
+    end else
+      true in
+
+  let execute_scheme () =
+    let _ = Sys.command (Printf.sprintf "scheme -q < %s > %s" test_file scheme_out_file) in
+    true in
+
+  let execute_comparison () =
+    let actual = read_file_trimmed out_file in
+    let scheme_actual = read_file_trimmed scheme_out_file in
+    write_to_file cmp_results_exp_file (Printf.sprintf "(equal? '(%s) '(%s))" scheme_actual actual);
+    let _ = Sys.command (Printf.sprintf "scheme -q < %s > %s" cmp_results_exp_file result_file) in
+    true in
+
+  let check_result () =
+    let result_scheme_bool = read_file_trimmed result_file in
+    let result = result_scheme_bool = "#t" in
+    if not result then begin
+      print_in_color tc_fg_bright_red (Printf.sprintf "Test failed, incorrect result: %s" test_name);
+      false
+    end else
+      true in
+
+  let _ = execute_commands [
+    compile_test_file;
+    move_compilation_files_to_temp_dir;
+    execute_compiler;
+    execute_scheme;
+    execute_comparison;
+    check_result;
+  ] in
+  ();;
 
 let temp_dir = "tests/.tests_runner_files/";;
 
