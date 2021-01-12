@@ -52,10 +52,6 @@ let get_dir_entries dir_path =
   let entries_paths = List.map (fun entry_name -> combine_path dir_path entry_name) entries_names_list in
   List.partition (fun entry_path -> not (Sys.is_directory entry_path)) entries_paths;;
 
-let find_test_files_in_dir dir_path =
-  let (files, dirs) = get_dir_entries dir_path in
-  List.filter (has_file_ext ".scm") files;;
-
 let read_file file_path =
   let ic = open_in file_path in
   let s = really_input_string ic (in_channel_length ic) in
@@ -156,10 +152,26 @@ let run_test temp_dir test_file =
 
 let temp_dir = "tests/.tests_runner_files/";;
 
+let find_test_files_from_files files =
+  List.filter (has_file_ext ".scm") files;;
+let run_tests_from_files test_files =
+  List.iter (run_test temp_dir) test_files;;
+
 let run_tests_in_dir f_cleanup dir_path =
-  let test_files = find_test_files_in_dir dir_path in
-  List.iter (run_test temp_dir) test_files;
+  let (files, _) = get_dir_entries dir_path in
+  let test_files = find_test_files_from_files files in
+  run_tests_from_files test_files;
   f_cleanup dir_path;;
+
+let rec run_tests_in_dirs_recursive f_cleanup dir_path =
+  let (files, dirs) = get_dir_entries dir_path in
+  let test_files = find_test_files_from_files files in
+  if test_files <> [] then begin
+    Printf.printf "%s" ("testing in dir: " ^ dir_path);
+    run_tests_from_files test_files;
+    f_cleanup dir_path;
+  end
+  List.iter (run_tests_in_dirs_recursive f_cleanup) dirs;;
 
 let clean_nothing dir_path = ();;
 
