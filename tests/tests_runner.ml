@@ -94,6 +94,7 @@ let run_test temp_dir test_file =
 
   let exe_path = temp_file_no_ext in
   let cmp_results_exp_file = temp_file_no_ext ^ ".cmp_command.scm" in
+  let expected_out_file = file_path_no_ext ^ ".out" in
   let out_file = file_path_no_ext ^ ".actual" in
   let scheme_out_file = file_path_no_ext ^ ".scm.actual" in
   let result_file = file_path_no_ext ^ ".result" in
@@ -131,7 +132,7 @@ let run_test temp_dir test_file =
     let _ = Sys.command (Printf.sprintf "scheme -q < %s > %s" cmp_results_exp_file result_file) in
     true in
 
-  let check_result () =
+  let check_result_of_comparison_with_scheme () =
     let result_scheme_bool = read_file_trimmed result_file in
     let result = result_scheme_bool = "#t" in
     if not result then begin
@@ -140,14 +141,30 @@ let run_test temp_dir test_file =
     end else
       true in
 
-  let _ = execute_commands [
+  let check_result_with_expected_file () =
+    let actual = read_file_trimmed out_file in
+    let expected = read_file_trimmed expected_out_file in
+    if actual <> expected then begin
+      print_in_color tc_fg_bright_red (Printf.sprintf "Test failed, incorrect result: %s" test_name);
+      false
+    end else
+      true in
+
+  let base_commands = [
     compile_test_file;
     move_compilation_files_to_temp_dir;
     execute_compiler;
-    execute_scheme;
-    execute_comparison;
-    check_result;
   ] in
+  let rest_commands =
+    if Sys.file_exists expected_out_file then [
+      check_result_with_expected_file;
+    ]
+    else [
+      execute_scheme;
+      execute_comparison;
+      check_result_of_comparison_with_scheme;
+    ] in
+  let _ = execute_commands (base_commands @ rest_commands) in
   ();;
 
 let temp_dir = "tests/.tests_runner_files/";;
