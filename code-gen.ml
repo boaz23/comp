@@ -147,11 +147,14 @@ module Code_Gen : CODE_GEN = struct
   let make_literal_string_asm_code = fun str ->
     let str_len = String.length str in
     let chars_codes_str_cs =
-      let string_chars_list = string_to_list str in
-      let chars_codes = List.map Char.code string_chars_list in
-      let chars_codes_strs = List.map (fun char_code -> Printf.sprintf "%d" char_code) chars_codes in
+      if str = "" then
+        "\"\""
+      else
+        let string_chars_list = string_to_list str in
+        let chars_codes = List.map Char.code string_chars_list in
+        let chars_codes_strs = List.map (fun char_code -> Printf.sprintf "%d" char_code) chars_codes in
       String.concat ", " chars_codes_strs in
-    Printf.sprintf "MAKE_LITERAL_STRING(%d, {%s})" str_len chars_codes_str_cs;;
+    Printf.sprintf "MAKE_LITERAL_STRING %d, %s" str_len chars_codes_str_cs;;
   let make_literal_symbol_asm_code = fun addr ->
       Printf.sprintf "MAKE_LITERAL_SYMBOL(%s%d)" const_tbl_label_plus addr;;
   let make_literal_pair_asm_code = fun addr_car addr_cdr ->
