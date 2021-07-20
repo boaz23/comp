@@ -6,7 +6,8 @@ This was built as a continous semester project divided to multiple parts, each p
 The compiler was almost entierly built by us. However the staff did gave us some base files.
 The files contain a parsing combinator library and they covered much of the run-time support implementation.
 
-The files we were provided with are found in the course git repository. To clone it, run `git clone https://www.cs.bgu.ac.il/~comp211/compiler`.  
+The files we were provided with are found in the course git repository.  
+To clone it, run `git clone https://www.cs.bgu.ac.il/~comp211/compiler`.  
 The assignments full description can be found [here](https://www.cs.bgu.ac.il/~comp211/Assignments).
 
 ## Assignments
