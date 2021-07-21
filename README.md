@@ -8,7 +8,7 @@ The files contain a parsing combinator library and they covered much of the run-
 
 The files we were provided with are found in the course git repository.  
 To clone it, run `git clone https://www.cs.bgu.ac.il/~comp211/compiler`.  
-The assignments full description can be found [here](https://www.cs.bgu.ac.il/~comp211/Assignments).
+[Course assignments descriptions](https://www.cs.bgu.ac.il/~comp211/Assignments)
 
 ## Assignments
 The following sub-sections list the different parts we implemented (in order of the assignments):
